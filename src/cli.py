@@ -1,7 +1,8 @@
 import argparse
 from rich.console import Console
 from rich.table import Table
-from src import registry, checker, installer, logger
+from rich.panel import Panel
+from src import registry, checker, installer, logger, health, repair
 
 console = Console()
 
@@ -18,6 +19,53 @@ def cmd_list():
         version = res["version"] if res["version"] else "—"
         required = "Required" if res["required"] else "Optional"
         table.add_row(res["name"], installed, version, required)
+    console.print(table)
+
+def cmd_dashboard():
+    r = registry.load()
+    results = checker.check_all(r)
+    h = health.compute(results)
+    req_total = sum(1 for res in results if res["required"])
+    req_inst = sum(1 for res in results if res["required"] and res["installed"])
+    opt_total = sum(1 for res in results if not res["required"])
+    opt_inst = sum(1 for res in results if not res["required"] and res["installed"])
+    color = "green"
+    if h["status"] == "Good":
+        color = "yellow"
+    elif h["status"] == "Partial":
+        color = "orange3"
+    elif h["status"] == "Critical":
+        color = "red"
+    console.print(Panel(f"[bold {color}]{h['score']}/100[/bold {color}]", title="System Health", expand=False))
+    console.print(f"Status: [{color}]{h['status']}[/{color}]")
+    console.print(f"Required: {req_inst}/{req_total}")
+    console.print(f"Optional: {opt_inst}/{opt_total}")
+
+def cmd_repair():
+    s = repair.scan()
+    if s["missing_required"]:
+        console.print("[bold red]Missing Required:[/bold red]")
+        for t in s["missing_required"]:
+            console.print(f" - {t}")
+    if s["missing_optional"]:
+        console.print("[bold yellow]Missing Optional:[/bold yellow]")
+        for t in s["missing_optional"]:
+            console.print(f" - {t}")
+    if not s["missing_required"] and not s["missing_optional"]:
+        console.print("[green]✓ All tools present[/green]")
+        return
+    if console.input("\nProceed with repair? (y/n): ").lower() != 'y':
+        return
+    res = repair.repair_all()
+    table = Table(title="Repair Results")
+    table.add_column("Item")
+    table.add_column("Result")
+    for t in res["fixed"]:
+        table.add_row(t, "[green]✓ Fixed[/green]")
+    for t in res["failed"]:
+        table.add_row(t, "[red]✗ Failed[/red]")
+    for t in res["skipped"]:
+        table.add_row(t, "[yellow]! Skipped[/yellow]")
     console.print(table)
 
 def cmd_check(tool_id):
@@ -74,6 +122,8 @@ def main():
     parser = argparse.ArgumentParser(description="eSim Tool Manager")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list")
+    subparsers.add_parser("dashboard")
+    subparsers.add_parser("repair")
     p_check = subparsers.add_parser("check")
     p_check.add_argument("tool", nargs="?", default=None)
     p_install = subparsers.add_parser("install")
@@ -86,6 +136,10 @@ def main():
     
     if args.command == "list":
         cmd_list()
+    elif args.command == "dashboard":
+        cmd_dashboard()
+    elif args.command == "repair":
+        cmd_repair()
     elif args.command == "check":
         cmd_check(args.tool)
     elif args.command == "install":
