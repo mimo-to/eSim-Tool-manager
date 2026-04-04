@@ -30,12 +30,20 @@ def check_tool(tool_id: str, tool_data: dict) -> dict:
     else:
         log("CHECK", tool_id, "NOT_FOUND")
 
+    min_version = tool_data.get("min_version", "")
+    conflict = False
+    if installed and version and version != "unknown" and min_version:
+        from src.installer import is_outdated
+        conflict = is_outdated(version, min_version)
+
     return {
         "id": tool_id,
         "name": tool_data.get("name", ""),
         "installed": installed,
         "version": version,
-        "required": tool_data.get("required", False)
+        "required": tool_data.get("required", False),
+        "min_version": min_version,
+        "conflict": conflict
     }
 
 def check_all(registry_data: dict) -> list[dict]:

@@ -2,9 +2,13 @@ import argparse
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from src import registry, checker, installer, logger, health, repair, report, config
+from rich import box
+from src import registry, checker, installer, logger, health, repair, report, config, pip_checker
 
 console = Console()
+
+def print_header():
+    console.print(Panel("[bold cyan]eSim Tool Manager[/bold cyan]", expand=False))
 
 def cmd_list():
     r = registry.load()
@@ -41,7 +45,7 @@ def cmd_dashboard():
     console.print(f"Required: {req_inst}/{req_total}")
     console.print(f"Optional: {opt_inst}/{opt_total}")
 
-def cmd_repair():
+def cmd_repair(dry_run=False):
     s = repair.scan()
     if s["missing_required"]:
         console.print("[bold red]Missing Required:[/bold red]")
@@ -54,21 +58,32 @@ def cmd_repair():
     if not s["missing_required"] and not s["missing_optional"]:
         console.print("[green]✓ All tools present[/green]")
         return
+
+    if dry_run:
+        console.print("[yellow]Dry run — no changes will be made.[/yellow]")
+        return
     auto_conf = config.get("general.auto_confirm", False)
     if not auto_conf:
-        if console.input("\nProceed with repair? (y/n): ").lower() != 'y':
+        from rich.prompt import Confirm
+        if not Confirm.ask("Proceed with repair?"):
             return
     res = repair.repair_all()
     table = Table(title="Repair Results")
     table.add_column("Item")
     table.add_column("Result")
-    for t in res["fixed"]:
+    for t in res["tools"]["fixed"]:
         table.add_row(t, "[green]✓ Fixed[/green]")
-    for t in res["failed"]:
+    for t in res["tools"]["failed"]:
         table.add_row(t, "[red]✗ Failed[/red]")
-    for t in res["skipped"]:
+    for t in res["tools"]["skipped"]:
         table.add_row(t, "[yellow]! Skipped[/yellow]")
     console.print(table)
+
+    if res.get("pkgs"):
+        console.print("\n[bold]Python Packages:[/bold]")
+        for p in res["pkgs"]:
+            status = "[green]✓[/green]" if p["success"] else "[red]✗[/red]"
+            console.print(f"{status} {p['name']}")
 
 def cmd_report():
     path = report.generate()
@@ -138,12 +153,29 @@ def cmd_log():
     for line in lines:
         console.print(line)
 
+def cmd_pkgs():
+    print_header()
+    results = pip_checker.check_all()
+    
+    t = Table(title="Python Package Dependencies", box=box.ROUNDED)
+    t.add_column("Package", style="bold")
+    t.add_column("Status")
+    t.add_column("Version")
+
+    for r in results:
+        status = "[green]✓ OK[/green]" if r["ok"] else "[red]✗ Missing[/red]"
+        ver = r["version"] or "[dim]—[/dim]"
+        t.add_row(r["name"], status, ver)
+
+    console.print(t)
+
 def main():
     parser = argparse.ArgumentParser(description="eSim Tool Manager")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list")
     subparsers.add_parser("dashboard")
-    subparsers.add_parser("repair")
+    p_repair = subparsers.add_parser("repair")
+    p_repair.add_argument("--dry-run", action="store_true")
     subparsers.add_parser("report")
     p_check = subparsers.add_parser("check")
     p_check.add_argument("tool", nargs="?", default=None)
@@ -152,6 +184,7 @@ def main():
     p_update = subparsers.add_parser("update")
     p_update.add_argument("tool", nargs="?", default=None)
     subparsers.add_parser("log")
+    subparsers.add_parser("pkgs")
     
     args = parser.parse_args()
     
@@ -160,7 +193,7 @@ def main():
     elif args.command == "dashboard":
         cmd_dashboard()
     elif args.command == "repair":
-        cmd_repair()
+        cmd_repair(args.dry_run)
     elif args.command == "report":
         cmd_report()
     elif args.command == "check":
@@ -171,6 +204,8 @@ def main():
         cmd_update(args.tool)
     elif args.command == "log":
         cmd_log()
+    elif args.command == "pkgs":
+        cmd_pkgs()
     else:
         parser.print_help()
 

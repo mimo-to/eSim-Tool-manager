@@ -37,7 +37,6 @@ def install(tool_id: str, tool_data: dict) -> dict:
     try:
         result = subprocess.run(
             cmd,
-            shell=True,
             capture_output=True,
             text=True
         )
@@ -71,7 +70,6 @@ def update(tool_id: str, tool_data: dict) -> dict:
     try:
         result = subprocess.run(
             cmd,
-            shell=True,
             capture_output=True,
             text=True
         )
