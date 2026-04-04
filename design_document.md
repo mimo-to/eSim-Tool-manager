@@ -1,73 +1,106 @@
 # eSim Tool Manager — Design Document
 
 ## 1. Overview
-The **eSim Tool Manager** is a professional CLI utility designed to solve the complexity of managing external EDA tool dependencies (Ngspice, KiCad, Verilator, etc.) required by eSim. It provides a unified interface for installation, version detection, health monitoring, and automated repair across multiple operating systems.
 
-## 2. Architecture
+Managing dependencies for large EDA suites like eSim is often complex, platform-dependent, and error-prone. The **eSim Tool Manager** solves this by providing a modular, cross-platform CLI that automates verification, installation, and maintenance of electronic design tools.
 
-```text
-+---------------------+
-|        CLI          |  <-- Entry Point (run.py)
-+---------+-----------+
-          |
-          v
-+---------+-----------+      +-------------------+
-|      Checker        | ---> |   Platform Mgr    |
-+---------+-----------+      +---------+---------+
-          |                           |
-          v                           v
-+---------+-----------+      +---------+---------+
-|      Health         |      |    Subprocess     |  <-- OS Interactions
-+---------+-----------+      +---------+---------+
-          |                           |
-          v                           v
-+---------+-----------+      +---------+---------+
-|      Report         |      |      Logger       |  <-- Persistence
-+---------------------+      +-------------------+
+### Goal
+To ensure every eSim developer or user can initialize and maintain a compliant EDA toolchain with a single command.
+
+---
+
+## 2. Technical Architecture
+
+The system is built on a modular decoupled architecture, ensuring each component serves a single, well-defined purpose.
+
+| Module | Responsibility |
+| :--- | :--- |
+| **`registry`** | Centralized tool metadata management via `tools.toml`. |
+| **`platform_mgr`** | OS-level abstraction mapping tools to `apt`, `dnf`, `brew`, or `winget`. |
+| **`checker`** | Subprocess execution engine with regex-based version analysis. |
+| **`installer`** | Safe tool installation and version-aware bulk updates. |
+| **`config`** | Safe, persistent user system preferences (~/.esim_tool_manager/config.toml). |
+| **`health`** | System readiness scoring (0-100) and threshold-based diagnostics. |
+| **`repair`** | Automated logic for scanning and restoring missing dependencies. |
+| **`report`** | Offline HTML diagnostic report generator with embedded styling. |
+| **`cli`** | User interaction layer using `rich` for high-fidelity reporting. |
+| **`logger`** | Activity auditing and command execution tracking. |
+
+---
+
+## 3. System Flow
+
+The application follows a deterministic command-driven flow:
+
+### **General Command Flow**
+```mermaid
+graph TD
+    CLI[CLI Input] --> REG[Registry Loader]
+    REG --> CHECK[Checker Engine]
+    CHECK --> PLAT[Platform Abstraction]
+    PLAT --> SUB[Subprocess Execution]
+    SUB --> LOG[Activity Logger]
+    LOG --> UI[Rich UI Dashboard/Table]
 ```
 
-### Execution Flow
-`CLI` → `checker` → `platform_mgr` → `subprocess` → `logger` → `output`
+### **Intelligent Update Flow**
+```mermaid
+graph LR
+    Start(Update Command) --> Scan(Intelligent Scan)
+    Scan --> Comp(Version Tuple Comparison)
+    Comp -- "Installed >= Min" --> Skip(Skip: Already up-to-date)
+    Comp -- "Installed < Min" --> Exec(Execute Platform Update)
+    Exec --> Result(Update Result Table)
+```
 
-![Dependency Check Logic](screenshots/dependency_check.png)
+---
 
-### Core Modules
-- **`registry`**: Acts as the single source of truth. It loads tool metadata, package names, and version regex patterns from `tools.toml`.
-- **`platform_mgr`**: Abstract OS layer. It detects the host system and maps abstract install/update requests to native package managers (`apt`, `dnf`, `brew`, `winget`).
-- **`checker`**: The detection engine. It executes check commands and parses output via regex to identify installation status and versions.
-- **`installer`**: The execution engine. It handles the low-level subprocess calls to system package managers for installation and upgrades.
+## 4. Key Design Decisions
 
-### Enhancement Modules
-- **`health`**: Analyzes the results from the checker to compute a system readiness score (0-100) and status label (Excellent to Critical).
-- **`repair`**: Orchestrates recovery. It scans for missing required tools and invokes the installer to restore them.
-- **`report`**: The documentation engine. It generates standalone, dark-themed HTML health reports for offline audits.
-- **`cli`**: The user interface. It handles argument parsing and provides a rich terminal experience with tables and dashboards.
+- **TOML-Based Registry**: Tool definitions are kept outside the code, allowing updates to toolsets without logic changes.
+- **Persistent User Configuration**: A safe `config.get()` mechanism uses split-key traversal to ensure no crashes during preference retrieval.
+- **Deterministic Update Logic**: Avoids brittle string-parsing of subprocess output. Instead, it uses return codes for success/failure and pre-executes version comparison.
+- **Tuple-Based Normalization**: Version strings like `3.11.9` are converted to `(3, 11, 9)` to enable reliable numeric comparison across multi-segment versions.
+- **Cross-Platform Abstraction**: Centralizes package manager logic in `platform_mgr` to keep feature modules (like `installer`) platform-agnostic.
 
-## 3. Workflow
+---
 
-The operational flow follows a strict request-response pattern:
+## 5. Intelligent Update Engine
 
-1. **User Input**: User executes a command via the CLI (e.g., `python run.py dashboard`).
-2. **Registry Load**: The `cli` module calls `registry` to load the current tool definitions.
-3. **Internal Logic**: The `cli` invokes the relevant module (`checker`, `health`, etc.) based on the command.
-4. **Subprocess Execution**: Core modules interact with the target OS via `subprocess` with strict safety limits.
-5. **Rich Output**: Results are processed and displayed back to the user via a formatted terminal interface.
+The flagship feature of the eSim Tool Manager is its **version-aware** maintenance cycle.
 
-## 4. Key Decisions
+### **Algorithm: parse_version**
+1.  Extract numeric segments via regex: `re.findall(r'\d+', version_str)`.
+2.  Convert segments to a tuple of integers.
+3.  Handle malformed input by returning an empty tuple (Safe Default).
 
-- **TOML-Based Registry**: Decoupling tool data from code allows for easy updates to tool versions or package names without modifying the core logic.
-- **Subprocess Safety**: All shell commands are executed with `capture_output=True`, strict 10-second timeouts, and `returncode` validation to prevent hanging or silent failures.
-- **Platform Abstraction**: By mapping abstract tool IDs to OS-specific package manager keys, the tool remains truly cross-platform while keeping the logic simple.
-- **Failure-Safe Design**: Internal exception handlers ensure that missing commands or regex mismatches result in "unknown" or "missing" statuses rather than system crashes.
+### **Algorithm: is_outdated**
+1.  Generate tuples for both `installed_version` and `min_version`.
+2.  If either tuple is empty, return `False` (Failure-Safe Skip).
+3.  **Normalization**: Pad the shorter tuple with zeros (e.g., `(3, 8)` becomes `(3, 8, 0)` when compared to `(3, 8, 1)`).
+4.  Perform a direct tuple comparison: `installed_norm < min_norm`.
 
-## 5. Features Implemented
+---
 
-| Requirement | Implementation |
+## 6. Failure Handling Strategies
+
+- **Command Discovery**: Uses `shutil.which` to identify if package managers exist before attempting execution.
+- **Subprocess Isolation**: Commands run with `capture_output=True` and a default 10s timeout to prevent system-wide hangs.
+- **Safe Keys**: All registry lookups for package names use `platform_mgr.pkg_key()` to prevent attribute errors on unsupported platforms.
+- **Graceful Faults**: If a tool's version cannot be parsed, it is marked as "unknown" rather than raising an exception.
+
+---
+
+## 7. Requirement Mapping
+
+| Requirement | Implementation Component |
 | :--- | :--- |
-| **Tool Installation** | Supported via `installer.py` using native package managers. |
-| **Dependency Checking** | Real-time status and version detection in `checker.py`. |
-| **Health Monitoring** | Scoring algorithm implemented in `health.py`. |
-| **Auto-Repair** | Automated recovery system in `repair.py`. |
-| **HTML Reporting** | Styled offline report generation in `report.py`. |
-| **Cross-Platform** | Native support for Windows, Ubuntu/Fedora Linux, and macOS. |
-| **CLI Dashboard** | High-level system overview via the `dashboard` command. |
+| **Tool Installation** | `src/installer.py` + `src/platform_mgr.py` |
+| **Dependency Checking** | `src/checker.py` + `tools.toml` |
+| **Maintenance/Updates** | `src/installer.py` (Version-Aware Logic) |
+| **User Preferences** | `src/config.py` (~/.esim_tool_manager/config.toml) |
+| **UI/Reporting** | `src/cli.py` + `src/report.py` |
+
+---
+
+*This document is the master architectural record for the eSim Tool Manager project.*
