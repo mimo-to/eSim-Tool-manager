@@ -11,6 +11,7 @@ def print_header():
     console.print(Panel("[bold cyan]eSim Tool Manager[/bold cyan]", expand=False))
 
 def cmd_list():
+    print_header()
     r = registry.load()
     results = checker.check_all(r)
     table = Table(title="Installed Tools")
@@ -26,13 +27,11 @@ def cmd_list():
     console.print(table)
 
 def cmd_dashboard():
+    print_header()
     r = registry.load()
     results = checker.check_all(r)
     h = health.compute(results)
-    req_total = sum(1 for res in results if res["required"])
-    req_inst = sum(1 for res in results if res["required"] and res["installed"])
-    opt_total = sum(1 for res in results if not res["required"])
-    opt_inst = sum(1 for res in results if not res["required"] and res["installed"])
+    
     color = "green"
     if h["status"] == "Good":
         color = "yellow"
@@ -42,32 +41,49 @@ def cmd_dashboard():
         color = "red"
     console.print(Panel(f"[bold {color}]{h['score']}/100[/bold {color}]", title="System Health", expand=False))
     console.print(f"Status: [{color}]{h['status']}[/{color}]")
-    console.print(f"Required: {req_inst}/{req_total}")
-    console.print(f"Optional: {opt_inst}/{opt_total}")
+    console.print(f"Required: {h['required_installed']}/{h['required_total']}")
+    console.print(f"Optional: {h['optional_installed']}/{h['optional_total']}")
 
 def cmd_repair(dry_run=False):
-    s = repair.scan()
-    if s["missing_required"]:
-        console.print("[bold red]Missing Required:[/bold red]")
-        for t in s["missing_required"]:
-            console.print(f" - {t}")
-    if s["missing_optional"]:
-        console.print("[bold yellow]Missing Optional:[/bold yellow]")
-        for t in s["missing_optional"]:
-            console.print(f" - {t}")
-    if not s["missing_required"] and not s["missing_optional"]:
-        console.print("[green]✓ All tools present[/green]")
+    print_header()
+
+    scan = repair.scan()
+
+    missing_required = scan.get("missing_required", [])
+    missing_optional = scan.get("missing_optional", [])
+
+    if not missing_required and not missing_optional:
+        console.print("[bold green]✓ No issues found. System is healthy.[/bold green]")
         return
 
+    table = Table(title="Repair Summary", box=box.ROUNDED)
+    table.add_column("Category")
+    table.add_column("Items")
+
+    if missing_required:
+        table.add_row(
+            "[red]Missing Required[/red]",
+            ", ".join(missing_required)
+        )
+
+    if missing_optional:
+        table.add_row(
+            "[yellow]Missing Optional[/yellow]",
+            ", ".join(missing_optional)
+        )
+
+    console.print(table)
+
     if dry_run:
-        console.print("[yellow]Dry run — no changes will be made.[/yellow]")
+        console.print("\n[yellow bold]Dry run — no changes will be made.[/yellow bold]")
         return
     auto_conf = config.get("general.auto_confirm", False)
     if not auto_conf:
         from rich.prompt import Confirm
         if not Confirm.ask("Proceed with repair?"):
             return
-    res = repair.repair_all()
+    with console.status("[bold green]Repairing system dependencies...[/bold green]", spinner="dots"):
+        res = repair.repair_all()
     t = Table(title="Repair Results", box=box.ROUNDED)
     t.add_column("Item", style="bold")
     t.add_column("Type")
@@ -87,10 +103,12 @@ def cmd_repair(dry_run=False):
     console.print(t)
 
 def cmd_report():
+    print_header()
     path = report.generate()
     console.print(f"[bold green]Report saved at:[/bold green] {path}")
 
 def cmd_check(tool_id):
+    print_header()
     r = registry.load()
     if tool_id:
         if tool_id not in r:
@@ -111,6 +129,7 @@ def cmd_check(tool_id):
         console.print(table)
 
 def cmd_install(tool_id):
+    print_header()
     r = registry.load()
     if tool_id not in r:
         console.print(f"[red]Error: Unknown tool '{tool_id}'[/red]")
@@ -123,6 +142,7 @@ def cmd_install(tool_id):
         console.print(f"[red]✗ Failed to install {tool_id}[/red]")
 
 def cmd_update(tool_id):
+    print_header()
     r = registry.load()
     if tool_id:
         if tool_id not in r:
@@ -149,6 +169,7 @@ def cmd_update(tool_id):
         console.print(table)
 
 def cmd_log():
+    print_header()
     lines = logger.read_last(20)
     console.rule("[bold cyan]Last 20 Logs[/bold cyan]")
     for line in lines:

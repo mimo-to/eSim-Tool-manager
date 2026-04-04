@@ -2,6 +2,8 @@ import subprocess
 import re
 from src.logger import log
 
+from src.version_utils import is_outdated
+
 def check_tool(tool_id: str, tool_data: dict) -> dict:
     cmd = tool_data.get("check_cmd", "")
     installed = False
@@ -33,7 +35,6 @@ def check_tool(tool_id: str, tool_data: dict) -> dict:
     min_version = tool_data.get("min_version", "")
     conflict = False
     if installed and version and version != "unknown" and min_version:
-        from src.installer import is_outdated
         conflict = is_outdated(version, min_version)
 
     return {

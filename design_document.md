@@ -25,6 +25,9 @@ The system is built on a modular decoupled architecture, ensuring each component
 | **`report`** | Offline HTML diagnostic report generator with embedded styling. |
 | **`cli`** | User interaction layer using `rich` for high-fidelity reporting. |
 | **`logger`** | Activity auditing and command execution tracking. |
+| **`pip_checker`** | Validates Python dependencies required by eSim. |
+| **`tui`** | Textual-based interactive terminal UI. |
+| **`version_utils`** | Version parsing and comparison utilities. |
 
 ---
 
@@ -99,7 +102,20 @@ The flagship feature of the eSim Tool Manager is its **version-aware** maintenan
 | **Dependency Checking** | `src/checker.py` + `tools.toml` |
 | **Maintenance/Updates** | `src/installer.py` (Version-Aware Logic) |
 | **User Preferences** | `src/config.py` (~/.esim_tool_manager/config.toml) |
+| **Update and Upgrade System** | `src/installer.py` (version-aware update logic) |
+| **Cross-platform support** | `src/platform_mgr.py` |
 | **UI/Reporting** | `src/cli.py` + `src/report.py` |
+
+---
+
+## 8. Health Scoring System
+
+The health score is computed using a weighted ratio:
+- Required tools contribute 70% of the score
+- Optional tools contribute 30%
+- Conflicts reduce effective score
+
+This ensures critical dependencies are prioritized.
 
 ---
 

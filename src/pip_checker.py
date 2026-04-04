@@ -33,7 +33,7 @@ def check_pkg(name, min_ver):
     return {
         "name": name,
         "installed": installed,
-        "version": version or "—",
+        "version": version,
         "ok": ok
     }
 

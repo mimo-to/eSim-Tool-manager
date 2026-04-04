@@ -1,27 +1,7 @@
 import subprocess
-import re
 from src.logger import log as logger_log
-from src import platform_mgr as pm, checker, config
-
-def parse_version(v_str: str) -> tuple:
-    try:
-        nums = re.findall(r'\d+', str(v_str))
-        return tuple(int(n) for n in nums)
-    except Exception:
-        return ()
-
-def is_outdated(installed_v: str, min_v: str) -> bool:
-    v1 = parse_version(installed_v)
-    v2 = parse_version(min_v)
-    
-    if not v1 or not v2:
-        return False
-        
-    max_len = max(len(v1), len(v2))
-    v1_norm = v1 + (0,) * (max_len - len(v1))
-    v2_norm = v2 + (0,) * (max_len - len(v2))
-    
-    return v1_norm < v2_norm
+from src import platform_mgr as pm, config
+from src.version_utils import is_outdated
 
 def install(tool_id: str, tool_data: dict) -> dict:
     pkg = tool_data.get(pm.pkg_key(), "")
@@ -89,13 +69,15 @@ def update(tool_id: str, tool_data: dict) -> dict:
         "success": success
     }
 
-def update_all(registry_data: dict) -> dict:
-    results = checker.check_all(registry_data)
+def update_all(registry_data, check_results=None):
+    if check_results is None:
+        from src import checker as _checker
+        check_results = _checker.check_all(registry_data)
     upd_opt = config.get("update.update_optional", False)
     
     updated, failed, skipped = [], [], []
     
-    for res in results:
+    for res in check_results:
         t_id = res["id"]
         t_data = registry_data[t_id]
         
@@ -107,14 +89,12 @@ def update_all(registry_data: dict) -> dict:
             skipped.append({"name": res["name"], "reason": "Unstable version"})
             continue
             
-        # Version check
         min_v = t_data.get("min_version", "")
         if res["version"] and min_v:
             if not is_outdated(res["version"], min_v):
                 skipped.append({"name": res["name"], "reason": "Already up-to-date"})
                 continue
 
-        # Package manager check
         pkg_key = pm.pkg_key()
         pkg = t_data.get(pkg_key, "")
         if not pkg:
