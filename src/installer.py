@@ -1,6 +1,6 @@
 import subprocess
-from src.logger import log
-import src.platform_mgr as pm
+from src.logger import log as logger_log
+from src import platform_mgr as pm, checker, config
 
 def install(tool_id: str, tool_data: dict) -> dict:
     pkg = tool_data.get(pm.pkg_key(), "")
@@ -16,6 +16,7 @@ def install(tool_id: str, tool_data: dict) -> dict:
     try:
         result = subprocess.run(
             cmd,
+            shell=True,
             capture_output=True,
             text=True
         )
@@ -25,9 +26,9 @@ def install(tool_id: str, tool_data: dict) -> dict:
         pass
 
     if success:
-        log("INSTALL", tool_id, "SUCCESS")
+        logger_log("INSTALL", tool_id, "SUCCESS")
     else:
-        log("INSTALL", tool_id, "FAILED")
+        logger_log("INSTALL", tool_id, "FAILED")
 
     return {
         "id": tool_id,
@@ -49,6 +50,7 @@ def update(tool_id: str, tool_data: dict) -> dict:
     try:
         result = subprocess.run(
             cmd,
+            shell=True,
             capture_output=True,
             text=True
         )
@@ -58,14 +60,57 @@ def update(tool_id: str, tool_data: dict) -> dict:
         pass
 
     if success:
-        log("UPDATE", tool_id, "SUCCESS")
+        logger_log("UPDATE", tool_id, "SUCCESS")
     else:
-        log("UPDATE", tool_id, "FAILED")
+        logger_log("UPDATE", tool_id, "FAILED")
 
     return {
         "id": tool_id,
         "name": tool_data.get("name", ""),
         "success": success
+    }
+
+def update_all(registry_data: dict) -> dict:
+    results = checker.check_all(registry_data)
+    upd_opt = config.get("update.update_optional", False)
+    
+    updated, failed, skipped = [], [], []
+    
+    for res in results:
+        t_id = res["id"]
+        t_data = registry_data[t_id]
+        
+        if not res["installed"]:
+            skipped.append({"name": res["name"], "reason": "Not installed"})
+            continue
+        if res["version"] == "unknown":
+            skipped.append({"name": res["name"], "reason": "Unstable version"})
+            continue
+        
+        # Check package name for current platform using the correct key (e.g., winget_pkg)
+        pkg_key = pm.pkg_key()
+        pkg = t_data.get(pkg_key, "")
+        if not pkg:
+            skipped.append({"name": res["name"], "reason": "No package"})
+            continue
+            
+        if not res["required"] and not upd_opt:
+            skipped.append({"name": res["name"], "reason": "Optional tool"})
+            continue
+            
+        logger_log("UPDATE", t_id, "ATTEMPT")
+        res_upd = update(t_id, t_data)
+        if res_upd["success"]:
+            logger_log("UPDATE", t_id, "SUCCESS")
+            updated.append(res["name"])
+        else:
+            logger_log("UPDATE", t_id, "FAILED")
+            failed.append(res["name"])
+            
+    return {
+        "updated": updated,
+        "failed": failed,
+        "skipped": skipped
     }
 
 def install_all(registry_data: dict) -> list[dict]:

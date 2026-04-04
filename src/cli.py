@@ -2,7 +2,7 @@ import argparse
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from src import registry, checker, installer, logger, health, repair, report
+from src import registry, checker, installer, logger, health, repair, report, config
 
 console = Console()
 
@@ -54,8 +54,10 @@ def cmd_repair():
     if not s["missing_required"] and not s["missing_optional"]:
         console.print("[green]✓ All tools present[/green]")
         return
-    if console.input("\nProceed with repair? (y/n): ").lower() != 'y':
-        return
+    auto_conf = config.get("general.auto_confirm", False)
+    if not auto_conf:
+        if console.input("\nProceed with repair? (y/n): ").lower() != 'y':
+            return
     res = repair.repair_all()
     table = Table(title="Repair Results")
     table.add_column("Item")
@@ -106,15 +108,29 @@ def cmd_install(tool_id):
 
 def cmd_update(tool_id):
     r = registry.load()
-    if tool_id not in r:
-        console.print(f"[red]Error: Unknown tool '{tool_id}'[/red]")
-        return
-    console.print(f"Updating {tool_id}...")
-    res = installer.update(tool_id, r[tool_id])
-    if res["success"]:
-        console.print(f"[green]✓ Successfully updated {tool_id}[/green]")
+    if tool_id:
+        if tool_id not in r:
+            console.print(f"[red]Error: Unknown tool '{tool_id}'[/red]")
+            return
+        console.print(f"Updating {tool_id}...")
+        res = installer.update(tool_id, r[tool_id])
+        if res["success"]:
+            console.print(f"[green]✓ Successfully updated {tool_id}[/green]")
+        else:
+            console.print(f"[red]✗ Failed to update {tool_id}[/red]")
     else:
-        console.print(f"[red]✗ Failed to update {tool_id}[/red]")
+        res = installer.update_all(r)
+        table = Table(title="Update Results")
+        table.add_column("Tool")
+        table.add_column("Result")
+        table.add_column("Detail")
+        for t in res["updated"]:
+            table.add_row(t, "[green]✓ Updated[/green]", "")
+        for t in res["failed"]:
+            table.add_row(t, "[red]✗ Failed[/red]", "")
+        for t in res["skipped"]:
+            table.add_row(t["name"], "[yellow]! Skipped[/yellow]", t["reason"])
+        console.print(table)
 
 def cmd_log():
     lines = logger.read_last(20)
@@ -134,7 +150,7 @@ def main():
     p_install = subparsers.add_parser("install")
     p_install.add_argument("tool")
     p_update = subparsers.add_parser("update")
-    p_update.add_argument("tool")
+    p_update.add_argument("tool", nargs="?", default=None)
     subparsers.add_parser("log")
     
     args = parser.parse_args()
