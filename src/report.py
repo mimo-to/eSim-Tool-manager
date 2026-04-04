@@ -23,10 +23,10 @@ def generate(output_path: str = None) -> str:
     elif health_data["status"] == "Critical":
         score_color = "#da3633"
 
-    req_total = sum(1 for r in tool_results if r["required"])
-    req_inst = sum(1 for r in tool_results if r["required"] and r["installed"] and not r.get("conflict"))
-    opt_total = sum(1 for r in tool_results if not r["required"])
-    opt_inst = sum(1 for r in tool_results if not r["required"] and r["installed"])
+    req_total = health_data["required_total"]
+    req_inst = health_data["required_installed"]
+    opt_total = health_data["optional_total"]
+    opt_inst = health_data["optional_installed"]
     py_total = len(pkg_results)
     py_ok = sum(1 for r in pkg_results if r["ok"])
 

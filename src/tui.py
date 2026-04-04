@@ -6,23 +6,6 @@ from textual.containers import Vertical
 from src import checker, health, logger, registry, pip_checker
 
 class DashboardScreen(Screen):
-    CSS = """
-    .title {
-        text-align: center;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    .score {
-        text-align: center;
-        text-style: bold;
-        color: green;
-    }
-    #hints {
-        text-align: center;
-        opacity: 0.6;
-        margin-top: 2;
-    }
-    """
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -127,6 +110,24 @@ class PackagesScreen(Screen):
             )
 
 class ToolManagerApp(App):
+    CSS = """
+    .title {
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    .score {
+        text-align: center;
+        text-style: bold;
+        color: green;
+    }
+    #hints {
+        text-align: center;
+        opacity: 0.6;
+        margin-top: 2;
+    }
+    """
+
     SCREENS = {
         "dashboard": DashboardScreen,
         "tools": ToolsScreen,

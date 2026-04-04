@@ -1,5 +1,6 @@
 import importlib.metadata
 import re
+from src.version_utils import is_outdated
 
 ESIM_PYTHON_DEPS = {
     "numpy": ">=1.20",
@@ -19,14 +20,8 @@ def check_pkg(name, min_ver):
         version = importlib.metadata.version(name)
         installed = True
         
-        v_match = re.search(r'(\d+)', version)
-        m_match = re.search(r'(\d+)', min_ver)
-        
-        if v_match and m_match:
-            v_major = int(v_match.group(1))
-            m_major = int(m_match.group(1))
-            if v_major >= m_major:
-                ok = True
+        min_clean = re.sub(r'[>=<]', '', min_ver)
+        ok = not is_outdated(version, min_clean) if version else False
     except importlib.metadata.PackageNotFoundError:
         pass
         
