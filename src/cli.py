@@ -2,7 +2,7 @@ import argparse
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from src import registry, checker, installer, logger, health, repair
+from src import registry, checker, installer, logger, health, repair, report
 
 console = Console()
 
@@ -68,6 +68,10 @@ def cmd_repair():
         table.add_row(t, "[yellow]! Skipped[/yellow]")
     console.print(table)
 
+def cmd_report():
+    path = report.generate()
+    console.print(f"[bold green]Report saved at:[/bold green] {path}")
+
 def cmd_check(tool_id):
     r = registry.load()
     if tool_id:
@@ -124,6 +128,7 @@ def main():
     subparsers.add_parser("list")
     subparsers.add_parser("dashboard")
     subparsers.add_parser("repair")
+    subparsers.add_parser("report")
     p_check = subparsers.add_parser("check")
     p_check.add_argument("tool", nargs="?", default=None)
     p_install = subparsers.add_parser("install")
@@ -140,6 +145,8 @@ def main():
         cmd_dashboard()
     elif args.command == "repair":
         cmd_repair()
+    elif args.command == "report":
+        cmd_report()
     elif args.command == "check":
         cmd_check(args.tool)
     elif args.command == "install":
