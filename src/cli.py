@@ -3,7 +3,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
-from src import registry, checker, installer, logger, health, repair, report, config, pip_checker
+from src import registry, checker, installer, logger, health, repair, report, config, pip_checker, tui
 
 console = Console()
 
@@ -68,22 +68,23 @@ def cmd_repair(dry_run=False):
         if not Confirm.ask("Proceed with repair?"):
             return
     res = repair.repair_all()
-    table = Table(title="Repair Results")
-    table.add_column("Item")
-    table.add_column("Result")
-    for t in res["tools"]["fixed"]:
-        table.add_row(t, "[green]✓ Fixed[/green]")
-    for t in res["tools"]["failed"]:
-        table.add_row(t, "[red]✗ Failed[/red]")
-    for t in res["tools"]["skipped"]:
-        table.add_row(t, "[yellow]! Skipped[/yellow]")
-    console.print(table)
+    t = Table(title="Repair Results", box=box.ROUNDED)
+    t.add_column("Item", style="bold")
+    t.add_column("Type")
+    t.add_column("Result")
 
-    if res.get("pkgs"):
-        console.print("\n[bold]Python Packages:[/bold]")
-        for p in res["pkgs"]:
-            status = "[green]✓[/green]" if p["success"] else "[red]✗[/red]"
-            console.print(f"{status} {p['name']}")
+    for name in res["tools"]["fixed"]:
+        t.add_row(name, "Tool", "[green]✓ Fixed[/green]")
+    for name in res["tools"]["failed"]:
+        t.add_row(name, "Tool", "[red]✗ Failed[/red]")
+    for name in res["tools"]["skipped"]:
+        t.add_row(name, "Tool", "[yellow]! Skipped[/yellow]")
+
+    for p in res.get("pkgs", []):
+        status = "[green]✓ Installed[/green]" if p["success"] else "[red]✗ Failed[/red]"
+        t.add_row(p["name"], "Python", status)
+
+    console.print(t)
 
 def cmd_report():
     path = report.generate()
@@ -185,6 +186,7 @@ def main():
     p_update.add_argument("tool", nargs="?", default=None)
     subparsers.add_parser("log")
     subparsers.add_parser("pkgs")
+    subparsers.add_parser("tui")
     
     args = parser.parse_args()
     
@@ -206,6 +208,8 @@ def main():
         cmd_log()
     elif args.command == "pkgs":
         cmd_pkgs()
+    elif args.command == "tui":
+        tui.run()
     else:
         parser.print_help()
 

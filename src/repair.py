@@ -1,5 +1,6 @@
 import src.platform_mgr as pm
-from src import checker, installer, registry, pip_checker
+from src import checker, installer, registry, pip_checker, logger
+from rich.progress import Progress
 
 def scan() -> dict:
     results = checker.check_all(registry.load())
@@ -28,19 +29,29 @@ def fix_pkgs(pkg_names):
     
     results = []
     
-    for name in pkg_names:
-        print(f"Installing Python package: {name}...")
-        try:
-            r = subprocess.run(
-                [sys.executable, "-m", "pip", "install", name],
-                text=True
-            )
-            success = r.returncode == 0
-        except KeyboardInterrupt:
-            print(f"\nCancelled installation of {name}")
-            success = False
+    with Progress() as progress:
+        task = progress.add_task("Installing Python packages...", total=len(pkg_names))
+        
+        for name in pkg_names:
+            print(f"Installing Python package: {name}...")
             
-        results.append({"name": name, "success": success})
+            try:
+                r = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", name],
+                    text=True,
+                    timeout=300
+                )
+                success = r.returncode == 0
+            except subprocess.TimeoutExpired:
+                print(f"Timeout installing {name}")
+                success = False
+            except KeyboardInterrupt:
+                print(f"\nCancelled installation of {name}")
+                success = False
+                
+            results.append({"name": name, "success": success})
+            logger.log("PIP_INSTALL", name, success)
+            progress.advance(task)
     
     return results
 
