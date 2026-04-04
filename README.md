@@ -1,91 +1,103 @@
 # eSim Tool Manager
+Automated CLI & TUI tool for managing eSim dependencies across platforms.
 
-Cross-platform CLI tool to manage, verify, update, and repair eSim EDA dependencies with intelligent automation.
+---
 
-## Features
+### **Overview**
+Setting up an eSim development environment is a complex, error-prone process involving dozens of platform-specific tools and Python dependencies. The **eSim Tool Manager** transforms this into a 30-second automated check, providing a production-grade interface for detection, repair, and reporting.
 
-- **Automated Tool Installation**: Full cross-platform support for `apt`, `dnf`, `brew`, and `winget`.
-- **Intelligent Dependency Checking**: Real-time verification of installed tools with regex-based version extraction.
-- **Improved Update System**: Version-aware logic that compares installed versions against requirements to bypass redundant updates.
-- **Persistent User Configuration**: Customizable behavior via `~/.esim_tool_manager/config.toml` (auto-confirm, update-optional).
-- **Automated Repair Workflows**: Scans systems for missing required dependencies and offers a one-click recovery.
-- **Health Scoring Dashboard**: Quantifies system readiness with a real-time health score (0-100).
-- **HTML Audit Reporting**: Generates sleek, dark-themed system health reports for offline diagnostic sharing.
-- **Professional CLI Interface**: Powered by `rich` for crisp, color-coded tables and status panels.
+---
 
-## Why This Tool?
+### **Key Features**
+- **Cross-Platform Support**: Seamless operation on Windows, Linux, and macOS.
+- **Intelligent Dependency Checking**: Real-time validation of system binaries and PATH variables.
+- **Automated Repair System**: One-command restoration of missing environment tools.
+- **Python Package Validation**: Deep-dive checks for internal Python dependency alignment.
+- **Interactive TUI Dashboard**: High-fidelity terminal interface built with Textual.
+- **Health Scoring System**: Weighted metrics (0-100) to prioritize critical vs. optional tools.
+- **Shareable Reports**: Generates professional, dark-themed HTML diagnostic reports.
+- **CI/CD Integration**: Automated testing pipeline via GitHub Actions.
 
-Unlike generic installation scripts, the eSim Tool Manager provides a professional maintenance layer:
-- **Efficiency**: Avoids unnecessary updates using smart version tuple comparison logic.
-- **Safety**: Prioritizes automated repair workflows over simple error reporting to ensure a working EDA environment.
-- **Visibility**: Offers a diagnostic dashboard and health score to ensure system readiness at a glance.
+---
 
-## Installation
+### **Installation**
+```bash
+# Clone the repository
+git clone https://github.com/mimo-to/eSim-Tool-manager.git
 
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/your-repo/eSim-Tool-manager.git
-    cd eSim-Tool-manager
-    ```
+# Navigate to project directory
+cd eSim-Tool-manager
 
-2.  **Setup Virtual Environment**:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
-
-3.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## Usage
-
-| Command | Description |
-| :--- | :--- |
-| `python run.py list` | List all tools in the registry and their installation status. |
-| `python run.py check` | Run focused installation and version verification on all tools. |
-| `python run.py dashboard` | View system health score and tool status in a polished panel. |
-| `python run.py update` | Perform a version-aware bulk update of all installed tools. |
-| `python run.py repair` | Scan and automatically restore missing required dependencies. |
-| `python run.py report` | Generate an HTML diagnostic report of your system's health. |
-| `python run.py log` | Inspect recent activity and subprocess execution logs. |
-
-## Configuration
-
-The system persists user preferences in `~/.esim_tool_manager/config.toml`:
-
-```toml
-[general]
-auto_confirm = false  # Set to true to skip repair confirmation prompts
-log_level = "INFO"
-
-[update]
-update_optional = false # Set to true to include optional tools in bulk updates
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-## How the Update Engine Works
+---
 
-The eSim Tool Manager uses a deterministic and safe update strategy:
-1.  **Version Normalization**: Converts version strings (`3.11.9`) into comparable integer tuples using `re.findall(r'\d+', ...)`.
-2.  **Tuple Comparison**: Normalizes tuple lengths (e.g., `(3, 8)` vs `(3, 8, 1)` becomes `(3, 8, 0)` vs `(3, 8, 1)`) for accurate relative positioning.
-3.  **Intelligent Skip**: If your installed version is already `min_version` or higher, the tool reports "Already up-to-date" and skips the expensive subprocess call.
+### **Usage**
 
-## Project Structure
+#### **CLI Commands**
+| Command | Action |
+| :--- | :--- |
+| `python run.py check` | Full scan of system tools and status. |
+| `python run.py dashboard` | View system health score and tool categorization. |
+| `python run.py repair` | Automatically install or update missing tools. |
+| `python run.py report` | Generate a detailed HTML diagnostic report. |
+| `python run.py pkgs` | Validate the Python environment and internal packages. |
 
--   `src/registry.py`: TOML-driven master tool database logic.
--   `src/installer.py`: Core orchestration for installs and version-aware updates.
--   `src/checker.py`: Subprocess-based verification engine with regex extraction.
--   `src/platform_mgr.py`: Cross-platform abstraction layer for package managers.
--   `src/repair.py`: Logic for automated dependency recovery workflows.
--   `src/report.py`: Offline HTML diagnostic report generator.
--   `src/health.py`: Scoring algorithms for system readiness calculations.
--   `src/config.py`: Safe, persistent user configuration management.
--   `src/cli.py`: Professional subcommand-based interface.
+#### **Terminal User Interface (TUI)**
+Launch the immersive dashboard with:
+```bash
+python run.py tui
+```
+**Navigation Keys:**
+- `1`: Dashboard (System Health Overview)
+- `2`: Tools (Categorized Required/Optional List)
+- `3`: Logs (Action Audit History)
+- `4`: Packages (Python Environment Status)
+- `q`: Quit
 
-## Design Highlights
+---
 
--   **Modular Architecture**: Clean separation of concerns between verification, installation, and reporting.
--   **No Hardcoding**: All tool metadata, version patterns, and dependencies are externalized in `tools.toml`.
--   **Cross-Platform Ease**: Automatically maps tools to specific package managers (`apt`, `brew`, etc.) based on OS.
--   **Failure-Safe Execution**: Subprocess calls include timeouts and isolated execution to prevent system hangs.
+### **Example Output**
+**CLI Check:**
+```text
+✓ OK       Python         3.11.2
+✓ OK       npm            9.5.0
+✗ Missing  esim-cli       None (Required)
+```
+**TUI Score:**
+```text
+92/100
+Status: Healthy (Optional tools missing)
+```
+
+---
+
+### **Project Structure**
+- `src/`: Core implementation (logic, TUI, CLI engine).
+- `tests/`: Unit test suite covering registry, health, and platform logic.
+- `.github/`: CI/CD workflow configuration for automated testing.
+- `tools.toml`: Centralized registry for tool metadata.
+
+---
+
+### **Testing & CI**
+Quality is maintained through a dedicated test suite using Python's `unittest` framework.
+- **Run Tests Locally**: `python -m unittest discover tests`
+- **Automated CI**: Every push or PR triggers the `ci.yml` workflow on GitHub Actions to ensure cross-environment stability.
+
+---
+
+### **Why It Stands Out**
+- **Production-Grade Architecture**: Modular design for easy extension.
+- **Exceptional UX**: High-end TUI and clean CLI feedback.
+- **Real-World Reliability**: Integrated repair system and automated validation.
+- **Safety First**: Supports `--dry-run` to preview changes before execution.
+
+---
+
+### **Future Roadmap**
+- **Plugin System**: Support for user-defined external tool checks.
+- **Remote Registry**: Fetch tool definitions from a cloud-based source.
+- **GUI Desktop Client**: A Native Qt or Electron based visual manager.
