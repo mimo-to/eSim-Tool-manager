@@ -1,0 +1,90 @@
+[ngspice]
+name = "Ngspice"
+description = "Circuit simulation engine used by eSim"
+required = true
+min_version = "37"
+apt_pkg = "ngspice"
+dnf_pkg = "ngspice"
+brew_pkg = "ngspice"
+winget_pkg = "ngspice"
+check_cmd = "ngspice --version"
+version_pattern = "ngspice-(\\d+)"
+homepage = "https://ngspice.sourceforge.io"
+
+[kicad]
+name = "KiCad"
+description = "PCB and schematic design suite integrated with eSim"
+required = false
+min_version = "7.0"
+apt_pkg = "kicad"
+dnf_pkg = "kicad"
+brew_pkg = "kicad"
+winget_pkg = "KiCad.KiCad"
+check_cmd = "kicad --version"
+version_pattern = "(\\d+\\.\\d+\\.\\d+)"
+homepage = "https://www.kicad.org"
+
+[verilator]
+name = "Verilator"
+description = "Fast Verilog/SystemVerilog simulator"
+required = false
+min_version = "4.0"
+apt_pkg = "verilator"
+dnf_pkg = "verilator"
+brew_pkg = "verilator"
+winget_pkg = ""
+check_cmd = "verilator --version"
+version_pattern = "Verilator (\\d+\\.\\d+)"
+homepage = "https://verilator.org"
+
+[ghdl]
+name = "GHDL"
+description = "VHDL simulator and analyzer"
+required = false
+min_version = "2.0"
+apt_pkg = "ghdl"
+dnf_pkg = "ghdl"
+brew_pkg = "ghdl"
+winget_pkg = ""
+check_cmd = "ghdl --version"
+version_pattern = "GHDL (\\d+\\.\\d+)"
+homepage = "https://ghdl.github.io/ghdl"
+
+[python3]
+name = "Python 3"
+description = "Python runtime required by eSim"
+required = true
+min_version = "3.8"
+apt_pkg = "python3"
+dnf_pkg = "python3"
+brew_pkg = "python@3"
+winget_pkg = "Python.Python.3"
+check_cmd = "python3 --version"
+version_pattern = "Python (\\d+\\.\\d+\\.\\d+)"
+homepage = "https://python.org"
+
+[pip]
+name = "pip"
+description = "Python package manager"
+required = true
+min_version = "21.0"
+apt_pkg = "python3-pip"
+dnf_pkg = "python3-pip"
+brew_pkg = "python@3"
+winget_pkg = "Python.Python.3"
+check_cmd = "pip --version"
+version_pattern = "pip (\\d+\\.\\d+)"
+homepage = "https://pip.pypa.io"
+
+[git]
+name = "Git"
+description = "Version control system"
+required = true
+min_version = "2.0"
+apt_pkg = "git"
+dnf_pkg = "git"
+brew_pkg = "git"
+winget_pkg = "Git.Git"
+check_cmd = "git --version"
+version_pattern = "git version (\\d+\\.\\d+\\.\\d+)"
+homepage = "https://git-scm.com"
