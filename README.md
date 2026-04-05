@@ -21,6 +21,8 @@ pipx install git+https://github.com/mimo-to/eSim-Tool-manager.git
 esim-tm tui
 ```
 
+No cloning. No virtual environments. Works instantly.
+
 This installs the tool globally with no virtual environment setup.
 
 **Requires pipx:**
@@ -53,19 +55,6 @@ Setting up an eSim development environment is a complex, error-prone process inv
 - **Cross-platform support** covering Linux, Windows, and macOS
 - **GitHub Actions CI** with multi-version Python testing
 
----
-
-### **Installation**
-```bash
-# Clone the repository
-git clone https://github.com/mimo-to/eSim-Tool-manager.git
-
-# Navigate to project directory
-cd eSim-Tool-manager
-
-# Install dependencies
-pip install -r requirements.txt
-```
 
 ---
 
@@ -234,4 +223,20 @@ Quality is maintained through a dedicated test suite using Python's `unittest` f
 - **Run Tests Locally**: `python -m unittest discover tests`
 - **Automated CI**: Every push or PR triggers the `ci.yml` workflow on GitHub Actions to ensure cross-environment stability.
 
+
 ---
+
+## Manual Installation (Optional)
+
+This method is only needed for development or contribution.
+
+```bash
+# Clone the repository
+git clone https://github.com/mimo-to/eSim-Tool-manager.git
+
+# Navigate to project directory
+cd eSim-Tool-manager
+
+# Install dependencies
+pip install -r requirements.txt
+```

@@ -108,10 +108,8 @@ def update_all(registry_data, check_results=None):
         logger_log("UPDATE", t_id, "ATTEMPT")
         res_upd = update(t_id, t_data)
         if res_upd["success"]:
-            logger_log("UPDATE", t_id, "SUCCESS")
             updated.append(res["name"])
         else:
-            logger_log("UPDATE", t_id, "FAILED")
             failed.append(res["name"])
             
     return {

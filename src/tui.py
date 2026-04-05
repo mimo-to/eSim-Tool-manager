@@ -69,7 +69,7 @@ class LogsScreen(Screen):
         logs = logger.read_last(10)
         yield Vertical(
             Static("Recent Logs", classes="title"),
-            Static("\n\n".join(logs) if logs else "No logs available")
+            Static("\n".join(logs) if logs else "No logs available")
         )
         yield Footer()
 
