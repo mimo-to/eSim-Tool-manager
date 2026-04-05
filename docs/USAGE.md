@@ -1,67 +1,47 @@
-# Usage Guide
+# eSim-tm Usage Workflows
 
-This guide covers common user scenarios, from initial setup to environment monitoring and repair workflows.
-
-## 1-Minute Workflow
-*The standard sequence for maintaining a healthy environment.*
-
-**`doctor`** → **`repair`** → **`snapshot`** → **`snapshot-diff`**
+This document outlines real-world scenarios for using the `esim-tm` tool.
 
 ---
 
-## First-Time Setup
+### **1. First-Time Environment Setup**
 
-*Goal: Ensure your machine is ready for eSim development.*
+**Goal**: Verify your system and fix all core dependencies.
 
-1. **Verify your environment**:
-   ```bash
-   python run.py doctor
-   ```
-2. **Review identified issues**: Check both `Required` (essential) and `Optional` dependencies.
-3. **Save a baseline state**:
-   ```bash
-   python run.py snapshot
-   ```
-   *This creates a known-good reference of your current setup.*
+1.  **Check Diagnostics**: Run `esim-tm doctor` to see what is missing.
+2.  **Interactive Guide**: Use `esim-tm assist` to fix issues.
+3.  **Capture Baseline**: Once everything is "OK", run `esim-tm snapshot` to save your working state.
 
 ---
 
-## Broken Environment
-*Goal: Fix missing or outdated dependencies.*
+### **2. Broken Environment Recovery**
 
-1. **Perform deep diagnostics**:
-   ```bash
-   python run.py doctor
-   ```
-2. **Run an automated repair**:
-   ```bash
-   python run.py repair
-   ```
-3. **Verify the fix**:
-   ```bash
-   python run.py snapshot-diff
-   ```
-   *This shows you exactly what changed since your last snapshot.*
+**Goal**: Restore a system that was previously working but is now failing.
+
+1.  **Identify Changes**: Run `esim-tm snapshot-diff`. This will show you exactly what changed (e.g., a tool was uninstalled or a version changed).
+2.  **Repair Issues**: Use `esim-tm assist` for guided recovery.
+3.  **Bulk Fix (Advanced)**: Use `esim-tm repair` for automated attempt at fixing all required tools.
 
 ---
 
-## Monitoring Changes
-*Goal: Detect regressions in tool versions or PATH settings.*
+### **3. Monitoring System Changes**
 
-1. **Run a comparison**:
-   ```bash
-   python run.py snapshot-diff
-   ```
-2. **Review differences**:
-   - **New Issues**: Tools that were working but are now missing or outdated.
-   - **Fixed Issues**: Tools resolved since the last snapshot.
+**Goal**: Detect when a system update or another user has modified the EDA environment.
+
+-   **Compare Baseline**: Run `esim-tm snapshot-diff`.
+-   **Review Package Mismatches**: Use `esim-tm pkgs` to check for Python library consistency.
 
 ---
 
-## What NOT to do
-*Avoid these common anti-patterns:*
+### **4. Pro Tips**
 
-- **Do not manually edit PATH blindly**: Use `repair` or check `doctor` output for guided fixes.
-- **Do not install tools without checking**: Running `doctor` first ensures you're installing the correct version.
-- **Do not skip snapshot baseline**: Without a baseline, you cannot detect regressions efficiently.
-- **Do not ignore "Outdated" warnings**: Even if a tool is detected, missing patches can cause project failures.
+-   **Diagnostics First**: Always start with `esim-tm doctor`. It’s the highest-confidence report.
+-   **No Guesswork**: If `doctor` shows an issue, don't guess the command. Use `assist` and follow the menus.
+-   **Isolated Development**: Use `esim-tm --json` to extract data for your own scripts or CI/CD pipelines.
+
+---
+
+**Terminology Reference**:
+-   **Tool**: External binaries like Ngspice, Verilator, or GHDL.
+-   **Package**: Python libraries such as `numpy` or `scipy`.
+-   **Issue**: Any mismatch in PATH, version, or installation state.

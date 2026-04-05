@@ -1,58 +1,46 @@
-# Project Features
+# eSim Tool Manager Features
 
-This document provides a comprehensive breakdown of the eSim Tool Manager's capabilities, categorized by their primary use case.
-
-## Most Important Features
-*Fast diagnostics and recovery for students and developers.*
-
-- **`doctor`** → One-command environment diagnostics.
-- **`repair`** → Auto-fix system configuration issues.
-- **`snapshot`** → Track and monitor state changes via baseline files.
+This document details the core diagnostic, recovery, and development tools within `esim-tm`.
 
 ---
 
-## Core Features
+### **Core Diagnostics**
 
-*Essential tools for environment health and recovery.*
+#### **1. Feature: doctor**
+-   **What it does**: Performs a system-wide diagnostic check on all 10+ required and optional tools.
+-   **Value**: It’s the high-confidence reporter. It doesn’t just say if a tool is missing; it checks if it’s in your PATH, if the version meets requirements, and if it’s executable.
 
-### `doctor`
-- **What**: Full system diagnostics for eSim dependencies.
-- **Why**: Reduces manual debugging time by identifying missing or outdated tools in one command.
-
-### `repair`
-- **What**: Automated fixing of identified environment issues.
-- **Why**: Provides a safe, one-click solution for common setup errors (PATH, missing packages).
-
-### `list`
-- **What**: Quick status overview of all registered tools.
-- **Why**: Allows users to verify their inventory without running deep diagnostics.
+#### **2. Feature: assist**
+-   **What it does**: An interactive recovery system that guides you through every step of a tool's installation or fix.
+-   **Value**: This is your primary recovery path. It provides automated install attempts, links to official guides, and a dynamic "re-check loop" to ensure you don't exit until the tool is healthy.
 
 ---
 
-## Developer Features
-*Tools for automation, CI/CD, and detailed troubleshooting.*
+### **Advanced Monitoring**
 
-### `--verbose`
-- **What**: Additive diagnostic tracing for all commands.
-- **Why**: Helps contributors identify the exact step where a detection or install fails.
+#### **3. Feature: snapshot**
+-   **What it does**: Captures the exact state of your EDA environment (tool versions, package lists).
+-   **Value**: Protects your environment against silent changes from system updates or accidental uninstalls.
 
-### `--json`
-- **What**: Machine-readable output for all diagnostic data.
-- **Why**: Enables integration with internal scripts, CI pipelines, and IDE extensions.
+#### **4. Feature: snapshot-diff**
+-   **What it does**: Compares your current system state against your last captured baseline.
+-   **Value**: Rapidly identifies "New Issues" (tools that just stopped working) or "Fixed Issues" (tools you’ve successfully recovered).
 
 ---
 
-## Advanced Features
-*Specialized tools for environment monitoring and extensibility.*
+### **Developer Tools**
 
-### `snapshot`
-- **What**: Baselines the current environment state to a JSON file.
-- **Why**: Creates a "known good" reference point for future comparisons.
+#### **5. Feature: check**
+-   **What it does**: Performs a quick health check for a specific tool or package.
+-   **Value**: Lightweight verification for use in custom scripts or post-install verification.
 
-### `snapshot-diff`
-- **What**: Compares current environment against a saved snapshot.
-- **Why**: Instantly identifies regressions (e.g., deleted tools) or improvements after a repair.
+#### **6. Feature: pkgs**
+-   **What it does**: Lists all eSim-specific Python libraries and checks for missing or outdated versions.
+-   **Value**: Ensures library consistency across development and production environments.
 
-### Custom Tool Registration
-- **What**: Extensible TOML-based tool definitions.
-- **Why**: Allows teams to add project-specific tools to the eSim health-check suite.
+---
+
+**Terminology Guide**:
+-   **Core Diagnostics**: Essential tools for system recovery.
+-   **Advanced Monitoring**: State-tracking for long-term environment stability.
+-   **Developer Tools**: Granular commands for specialized usage.

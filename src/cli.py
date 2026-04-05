@@ -4,6 +4,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -25,6 +26,14 @@ def is_venv():
 
 def get_platform():
     return platform.system().lower()
+
+def is_fixed(res):
+    """Checks if a tool is fully installed and healthy."""
+    return (
+        bool(res.get("installed", False)) and
+        not bool(res.get("conflict", False)) and
+        not bool(res.get("path_issue", False))
+    )
 
 def has_winget():
     return shutil.which("winget") is not None
@@ -309,7 +318,9 @@ def cmd_doctor():
             "ngspice": {
                 "linux": "sudo apt install ngspice",
                 "darwin": "brew install ngspice",
-                "windows": None
+                "windows": {
+                    "choco": "choco install ngspice -y"
+                }
             },
             "verilator": {
                 "linux": "sudo apt install verilator",
@@ -319,7 +330,9 @@ def cmd_doctor():
             "ghdl": {
                 "linux": "sudo apt install ghdl",
                 "darwin": "brew install ghdl",
-                "windows": None
+                "windows": {
+                    "winget": "winget install --id ghdl.ghdl.ucrt64.mcode -e --silent"
+                }
             },
             "kicad": {
                 "windows": {
@@ -529,20 +542,305 @@ def cmd_setup_help():
     print_header()
     
     console.print("[bold cyan]1. Getting Started[/bold cyan]")
-    console.print("   • [bold]esim-tm doctor[/bold] (or python run.py [bold]doctor[/bold]) → Run full diagnostics")
-    console.print("   • [bold]esim-tm repair[/bold] (or python run.py [bold]repair[/bold]) → Auto-fix missing items")
-    console.print("   • [bold]esim-tm dashboard[/bold] (or python run.py [bold]dashboard[/bold]) → View readiness score")
+    console.print("   • [bold]esim-tm doctor[/bold]        → Run full diagnostics")
+    console.print("   • [bold]esim-tm assist[/bold]        → Interactive guided fix")
+    console.print("   • [bold]esim-tm repair[/bold]        → Auto-fix missing items")
     
-    console.print("\n[bold cyan]2. Common Commands[/bold cyan]")
-    console.print("   • [bold]list[/bold]          → Show status of all registered tools")
-    console.print("   • [bold]check[/bold]         → Detailed check for a specific tool")
-    console.print("   • [bold]pkgs[/bold]          → Check Python package dependencies")
-    console.print("   • [bold]snapshot[/bold] (or python run.py [bold]snapshot[/bold])     → Save current state")
-    console.print("   • [bold]snapshot-diff[/bold] → Identify changes since last snapshot")
+    console.print("\n[bold cyan]2. Monitoring & State[/bold cyan]")
+    console.print("   • [bold]esim-tm snapshot[/bold]      → Save current state")
+    console.print("   • [bold]esim-tm snapshot-diff[/bold] → Identify changes since last snapshot")
+    console.print("   • [bold]esim-tm dashboard[/bold]     → View readiness score")
     
     console.print("\n[bold cyan]3. Typical Workflow[/bold cyan]")
-    console.print("   [dim]doctor[/dim] → [dim]repair[/dim] → [dim]snapshot[/dim] (baseline) → [dim]snapshot-diff[/dim] (monitor)")
+    console.print("   [dim]doctor[/dim] → [dim]assist[/dim] → [dim]snapshot[/dim] (baseline) → [dim]snapshot-diff[/dim] (monitor)")
     console.print("\nFor more details, run commands with [bold]--help[/bold]")
+
+
+DOWNLOAD_LINKS = {
+    "python3": "https://www.python.org/downloads/",
+    "pip": "https://pip.pypa.io/en/stable/installation/",
+    "git": "https://git-scm.com/downloads",
+    "ngspice": "https://ngspice.sourceforge.io/download.html",
+    "kicad": "https://www.kicad.org/download/",
+    "verilator": "https://verilator.org/guide/latest/install.html",
+    "ghdl": "https://github.com/ghdl/ghdl/releases"
+}
+
+INSTALL_STEPS = {
+    "python3": [
+        "Go to python.org/downloads",
+        "Download the latest Windows installer",
+        "IMPORTANT: Check 'Add Python to PATH' before clicking Install",
+        "Complete installation and restart terminal"
+    ],
+    "pip": [
+        "Download get-pip.py from bootstrap.pypa.io/get-pip.py",
+        "Run: python get-pip.py",
+        "Verify with: pip --version"
+    ],
+    "git": [
+        "Download the Windows installer from git-scm.com",
+        "Run the installer and accept default options",
+        "Restart terminal to enable 'git' command"
+    ],
+    "ngspice": [
+        "Visit the Ngspice download page on SourceForge",
+        "Download the latest Windows binary (e.g., ngspice-42_64.zip)",
+        "Extract it to c:\\ngspice",
+        "Add c:\\ngspice\\bin to your system PATH"
+    ],
+    "verilator": [
+        "Download the latest release or use WSL/Cygwin",
+        "Follow the official guide to build/install",
+        "Ensure 'verilator' command is accessible in PATH"
+    ],
+    "ghdl": [
+        "Download the msys2 or llvm binary for Windows",
+        "Extract/Install to a known directory",
+        "Add the install directory to your PATH"
+    ],
+    "kicad": [
+        "Download the 64-bit installer from the official website",
+        "Run the installer and follow the wizard (default settings recommended)",
+        "Check 'Add KiCad to PATH' if prompted, or verify manually"
+    ]
+}
+
+
+def cmd_assist():
+    """Interactive assistant for tool installation."""
+    registry_data = registry.load()
+    
+    # Discovery phase
+    all_res = checker.check_all(registry_data)
+    problematic_results = [res for res in all_res if not is_fixed(res)]
+    
+    if not problematic_results:
+        console.print("[bold green]✓ All tools are healthy! No assistance needed.[/bold green]")
+        return
+
+    # Initial Snapshot (Locked Set)
+    initial_tools = {str(res["id"]).strip().lower() for res in problematic_results}
+    installed_tools = set()
+    skipped_tools = set()
+    
+    print_header()
+    console.print(f"Found {len(initial_tools)} tool(s) requiring attention.\n")
+    
+    try:
+        # Outer Loop: Process one tool at a time
+        for tool_id in sorted(list(initial_tools)):
+            if tool_id in (installed_tools | skipped_tools):
+                continue
+                
+            tool_data = registry_data.get(tool_id)
+            if not tool_data:
+                skipped_tools.add(tool_id)
+                continue
+                
+            # Real-time state check per tool turn
+            res = checker.check_tool(tool_id, tool_data)
+            if is_fixed(res):
+                installed_tools.add(tool_id)
+                continue
+                
+            attempts = 0
+            max_attempts = 5
+            path_hint_shown = False
+            
+            # Inner Loop: Menu for current tool
+            while True:
+                # Refresh state inside inner loop if needed
+                res = checker.check_tool(tool_id, tool_data)
+                if is_fixed(res):
+                    if tool_id not in (installed_tools | skipped_tools):
+                        installed_tools.add(tool_id)
+                    break # to next tool
+                
+                status_str = "[red]Not found[/red]"
+                if res.get("path_issue"):
+                    status_str = "[yellow]Installed but not in PATH[/yellow]"
+                elif res.get("conflict"):
+                    status_str = "[red]Version conflict / Dirty install[/red]"
+                
+                console.print(Panel(
+                    f"[bold]{res['name']}[/bold]\nStatus: {status_str}",
+                    title=f"Tool Assistance ({sorted(list(initial_tools)).index(tool_id) + 1}/{len(initial_tools)})",
+                    expand=False
+                ))
+                
+                if res.get("path_issue") and not path_hint_shown:
+                    console.print("[dim]💡 Hint: The tool appears to be installed but your terminal can't find it. Try adding its folder to your system PATH variable.[/dim]\n")
+                    path_hint_shown = True
+
+                # Dynamic Menu
+                options = []
+                idx = 1
+                
+                # 1. Auto-install (if available)
+                has_auto = tool_data.get("install_cmd") or (get_platform() == "windows" and tool_data.get("winget_pkg"))
+                if has_auto:
+                    options.append((str(idx), "[green]Auto-install[/green] (Try automatic repair)"))
+                    auto_idx = str(idx)
+                    idx += 1
+                else:
+                    auto_idx = None
+                
+                # 2. Download page / Installation Guide
+                download_url = DOWNLOAD_LINKS.get(tool_id)
+                label_text = "Open official [bold]installation guide[/bold] in browser"
+                
+                if not download_url:
+                    download_url = tool_data.get("homepage")
+                    label_text = "Open official [bold]homepage[/bold] in browser"
+                
+                if download_url:
+                    options.append((str(idx), label_text))
+                    download_idx = str(idx)
+                    idx += 1
+                else:
+                    download_idx = None
+                
+                # 3. Manual Steps
+                if tool_id in INSTALL_STEPS:
+                    options.append((str(idx), "Show [bold]manual installation steps[/bold]"))
+                    steps_idx = str(idx)
+                    idx += 1
+                else:
+                    steps_idx = None
+                
+                recheck_idx = str(idx)
+                options.append((recheck_idx, "Re-check status now"))
+                idx += 1
+                
+                skip_idx = str(idx)
+                options.append((skip_idx, "Skip this tool"))
+                
+                options.append(("a", "Skip [bold]all[/bold] remaining tools"))
+                options.append(("q", "Quit assistant"))
+                
+                for key, label in options:
+                    console.print(f"  {key}. {label}")
+                
+                choice = input("\nSelect an option: ").strip().lower()
+                
+                if choice == auto_idx and auto_idx:
+                    console.print(f"\nAttempting auto-install for {res['name']}...")
+                    try:
+                        success = installer.install_tool(tool_id, tool_data)
+                        if success:
+                            console.print("[green]Installation attempted successfully.[/green]")
+                        else:
+                            console.print("[yellow]Auto-install was not successful or not available.[/yellow]")
+                    except Exception as e:
+                        console.print(f"[red]Auto-install failed with error: {e}[/red]")
+                        success = False
+                    
+                    console.print("\n[bold]Re-check recommended to verify health.[/bold]")
+                    from rich.prompt import Confirm
+                    if Confirm.ask("Re-check status now?"):
+                        res = checker.check_tool(tool_id, tool_data)
+                        if is_fixed(res):
+                            console.print("[bold green]✓ Fixed! Tool is now healthy.[/bold green]")
+                            if tool_id not in (installed_tools | skipped_tools):
+                                installed_tools.add(tool_id)
+                            break
+                        else:
+                            console.print("[red]✗ Still not detected or unhealthy.[/red]")
+                
+                elif choice == download_idx and download_idx:
+                    console.print(f"Opening: {download_url}")
+                    webbrowser.open(download_url)
+                
+                elif choice == steps_idx and steps_idx:
+                    steps = INSTALL_STEPS[tool_id]
+                    console.print(f"\n[bold underline]Manual Steps for {res['name']}:[/bold underline]")
+                    for i, step in enumerate(steps, 1):
+                        console.print(f"  {i}. {step}")
+                    console.print("")
+                
+                elif choice == recheck_idx:
+                    attempts += 1
+                    console.print("\nRe-checking status...")
+                    res = checker.check_tool(tool_id, tool_data)
+                    if is_fixed(res):
+                        console.print("[bold green]✓ Fixed![/bold green]")
+                        if tool_id not in (installed_tools | skipped_tools):
+                            installed_tools.add(tool_id)
+                        break
+                    else:
+                        console.print(f"[red]✗ Still not detected.[/red] (Attempt {attempts}/{max_attempts})")
+                        if attempts >= max_attempts:
+                            console.print("[yellow]Maximum re-check attempts reached for this tool.[/yellow]")
+                            if tool_id not in (installed_tools | skipped_tools):
+                                skipped_tools.add(tool_id)
+                            break
+                            
+                elif choice == skip_idx:
+                    if tool_id not in (installed_tools | skipped_tools):
+                        skipped_tools.add(tool_id)
+                    break
+                    
+                elif choice == "a":
+                    # Skip all remaining tools including current
+                    to_skip = initial_tools - installed_tools - skipped_tools
+                    skipped_tools.update(to_skip)
+                    console.print(f"\nSkipping all remaining {len(to_skip)} tool(s)...")
+                    return # Exit outer loop via return to trigger finally
+                    
+                elif choice == "q":
+                    console.print("\nExiting assistant...")
+                    return # Exit outer loop via return to trigger finally
+                    
+                else:
+                    console.print("[red]Invalid choice. Try again.[/red]")
+                    
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user.[/yellow]")
+    finally:
+        # 1. ENFORCE HIGH-CONFIDENCE DISJOINT PARTITION
+        final_installed = installed_tools.copy()
+        final_skipped = skipped_tools.copy()
+        final_remaining = initial_tools - final_installed - final_skipped
+        
+        # PROVE INTEGRITY
+        assert final_installed.isdisjoint(final_skipped), "Internal state error"
+        
+        # 2. CATEGORIZED SUMMARY
+        console.print(Panel(
+            "[bold cyan]Assistant Summary Report[/bold cyan]",
+            box=box.DOUBLE,
+            expand=False
+        ))
+        
+        # Installed
+        console.print("\n[bold green]✓ SUCCESSFULLY INSTALLED / FIXED[/bold green]")
+        if final_installed:
+            for tid in sorted(list(final_installed)):
+                name = registry_data.get(tid, {}).get("name", tid)
+                console.print(f"  • {name}")
+        else:
+            console.print("  (none)")
+            
+        # Skipped
+        console.print("\n[bold yellow]⚠ SKIPPED DURING ASSIST[/bold yellow]")
+        if final_skipped:
+            for tid in sorted(list(final_skipped)):
+                name = registry_data.get(tid, {}).get("name", tid)
+                console.print(f"  • {name}")
+        else:
+            console.print("  (none)")
+            
+        # Remaining
+        console.print("\n[bold red]✗ REMAINING ISSUES[/bold red]")
+        if final_remaining:
+            for tid in sorted(list(final_remaining)):
+                name = registry_data.get(tid, {}).get("name", tid)
+                console.print(f"  • {name}")
+        else:
+            console.print("  (none)")
+            
+        console.print("\n[dim]Use 'esim-tm doctor' to verify all system dependencies.[/dim]\n")
 
 def check_first_run():
     # Skip onboarding if JSON mode is requested to keep output clean
@@ -594,6 +892,7 @@ def main():
     subparsers.add_parser("snapshot", parents=[parent_parser])
     subparsers.add_parser("snapshot-diff", parents=[parent_parser])
     subparsers.add_parser("setup-help", parents=[parent_parser])
+    subparsers.add_parser("assist", parents=[parent_parser])
     
     global _args
     _args = parser.parse_args()
@@ -627,6 +926,8 @@ def main():
         cmd_snapshot_diff()
     elif args.command == "setup-help":
         cmd_setup_help()
+    elif args.command == "assist":
+        cmd_assist()
     else:
         parser.print_help()
 

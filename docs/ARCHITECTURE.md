@@ -1,40 +1,54 @@
-# Architecture Overview
+# eSim-tm Architecture Overview
 
-This document explains the high-level architecture of the eSim Tool Manager, its core modules, and its design philosophy.
-
-## Entry Point
-*Execution flow of the CLI application.*
-
-**`run.py`** → **`cli.py`** → **Module logic** (`checker`, `installer`, etc.)
+This document describes the internal structure and logic of the eSim Tool Manager (`esim-tm`).
 
 ---
 
-## Module Mapping
-*A guide to the tool's modular structure.*
+### **1. System Flow Diagram (ASCII)**
 
-- **`registry`**: Central source of truth for tool definitions, commands, and requirements (`tools.toml`).
-- **`checker`**: Core logic for tool detection, version parsing, and health status (installed/missing/outdated).
-- **`installer`**: Executes automated fixes (e.g., `pip install`, `winget install`) based on registry instructions.
-- **`snapshot`**: Manages state persistence, JSON storage, and environment comparison logic.
-- **`cli`**: The user interface layer, managing subcommands, Rich-formatted output, and global flags.
+```text
+User Commands (esim-tm)
+  ↓
+CLI Layer (src/cli.py) ←──────┐
+  ↓ (args)                    │
+Registry (src/tools.toml)      │
+  ↓ (tool_data)                │
+Checker (src/checker.py) ──────┘
+  ↓ (results)
+Action Planner (src/repair.py)
+  ↓ (fix_steps)
+Installer (src/installer.py)
+  ↓ (subprocess)
+System Changes (Success/Fail)
+```
 
 ---
 
-## Why Modular?
-*Philosophy behind the design.*
+### **2. Core Modules**
 
-- **Easier Testing**: Each module is self-contained, allowing for isolated unit tests (e.g., test `checker` without a real CLI).
-- **Separation of Concerns**: UI logic (`cli.py`) is decoupled from detection logic (`checker.py`), ensuring a clean data flow.
-- **Extensibility**: Adding new tool types or repair methods only requires updates to the `registry` and `installer`.
-- **System Stability**: Failure in one module (e.g., snaphot JSON corruption) is gracefully handled without crashing the core diagnostic engine.
+-   **CLI (src/cli.py)**: The entry point. Handles argument parsing, user interaction, and high-level command logic.
+-   **Registry (src/tools.toml)**: The static configuration for all eSim-related tools (name, version, packages, links).
+-   **Checker (src/checker.py)**: The diagnostic heart. Runs platform-specific commands to verify a tool's existence and health.
+-   **Installer (src/installer.py)**: A safe wrapper for system-level package managers (WinGet, APT, Brew) with built-in timeouts.
+-   **Snapshot (src/snapshot.py)**: State-tracking logic for environment captures and diffing.
 
 ---
 
-## Data Flow
-*How a simple `doctor` command works:*
+### **3. The Assist System (State Machine)**
 
-1. **User** invokes `cmd_doctor`.
-2. **CLI** requests all registered tools from the **Registry**.
-3. **Checker** iterates through tools, running check commands and parsing results.
-4. **Health Logic** scores the environment based on detections.
-5. **CLI** formats the data with Rich and displays it to the **User**.
+The `esim-tm assist` command is built around a robust state machine that guarantees a non-dead-end UX:
+
+1.  **Discovery Phase**: Scans the system using `checker.check_all()`.
+2.  **Partitioning**: Divides tools into `Installed`, `Skipped`, and `Remaining` sets.
+3.  **Iteration Loop**:
+    -   Picks a `Remaining` tool.
+    -   Displays a dynamic menu based on tool metadata (Auto-install, manual guide, steps).
+    -   Executes user choice and **re-checks automatically** using `checker.check_tool()`.
+4.  **Final Summary**: Generates a product-grade categorization report once all tools are addressed.
+
+---
+
+### **4. Error Handling & Stability**
+
+-   **Subprocess Protection**: All system calls use `subprocess.run` with explicit `timeout=30` and `try-except` blocks.
+-   **Safe State Tracking**: Tools are only marked as "Installed" if a fresh diagnostic check passes, ensuring that temporary installation success doesn't hide a permanent tool failure.
