@@ -1,5 +1,8 @@
 import argparse
 import json
+import platform
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from rich.console import Console
@@ -13,6 +16,24 @@ _args = None
 
 def is_verbose():
     return _args and getattr(_args, "verbose", False) and "--json" not in sys.argv
+
+def is_pipx_env():
+    return "pipx" in sys.prefix.lower()
+
+def is_venv():
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+def get_platform():
+    return platform.system().lower()
+
+def has_winget():
+    return shutil.which("winget") is not None
+
+def has_choco():
+    return shutil.which("choco") is not None
+
+def has_scoop():
+    return shutil.which("scoop") is not None
 
 def print_header():
     console.print(Panel("[bold cyan]eSim Tool Manager[/bold cyan]", expand=False))
@@ -275,10 +296,75 @@ def cmd_doctor():
         conflict = res.get("conflict")
         req_label = "(Required)" if res.get("required") else "(Optional)"
 
+        t_id = res.get("id")
+        current_platform = get_platform()
+        
+        manual_links = {
+            "ngspice": "https://ngspice.sourceforge.io",
+            "verilator": "https://www.veripool.org/verilator/",
+            "ghdl": "https://ghdl.github.io/ghdl/",
+        }
+
+        install_commands = {
+            "ngspice": {
+                "linux": "sudo apt install ngspice",
+                "darwin": "brew install ngspice",
+                "windows": None
+            },
+            "verilator": {
+                "linux": "sudo apt install verilator",
+                "darwin": "brew install verilator",
+                "windows": None
+            },
+            "ghdl": {
+                "linux": "sudo apt install ghdl",
+                "darwin": "brew install ghdl",
+                "windows": None
+            },
+            "kicad": {
+                "windows": {
+                    "winget": "winget install --id KiCad.KiCad -e --silent",
+                    "choco": "choco install kicad -y"
+                }
+            }
+        }
+
+        def is_pkg_available(cmd_search):
+            try:
+                result = subprocess.run(
+                    cmd_search,
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                return result.returncode == 0 and result.stdout.strip()
+            except Exception:
+                return False
+
+        def get_fix_command(tool_id, plat):
+            cmd_data = install_commands.get(tool_id, {}).get(plat)
+            if not cmd_data:
+                return None
+            
+            if plat == "windows" and isinstance(cmd_data, dict):
+                # Winget validation
+                if has_winget() and cmd_data.get("winget"):
+                    pkg_id = "KiCad.KiCad" if tool_id == "kicad" else tool_id
+                    if is_pkg_available(["winget", "search", "--id", pkg_id]):
+                        return cmd_data["winget"]
+                
+                # Choco validation
+                if has_choco() and cmd_data.get("choco"):
+                    if is_pkg_available(["choco", "search", tool_id]):
+                        return cmd_data["choco"]
+                
+                return None
+            return cmd_data
+
         if not installed:
             tool_issues += 1
             console.print(f"[red]✗[/red] {name} — Not found {req_label}")
-            t_id = res.get("id")
+            
             t_data = registry_data.get(t_id) if t_id else None
             fix_cmd = None
             if t_data:
@@ -289,7 +375,28 @@ def cmd_doctor():
             if fix_cmd:
                 console.print(f"    → Fix: {fix_cmd}")
             else:
-                console.print("    → Fix: Install manually (no package mapping found)")
+                platform_cmd = get_fix_command(t_id, current_platform)
+                link = manual_links.get(t_id)
+                
+                if platform_cmd:
+                    console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
+                    if link:
+                        console.print(f"\n      Or install manually:\n      {link}")
+                elif link:
+                    console.print(f"    → Fix:\n      Install manually:\n      {link}")
+                    console.print(f"      [dim]Search: install {name} {current_platform if current_platform != 'darwin' else 'macos'}[/dim]")
+                    if current_platform == "windows":
+                        if has_winget():
+                            console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
+                        if has_choco():
+                            console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
+                else:
+                    console.print("    → Fix: Install manually (no package mapping found)")
+                    if current_platform == "windows":
+                        if has_winget():
+                            console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
+                        if has_choco():
+                            console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
         elif path_issue:
             tool_issues += 1
             console.print(f"[yellow]![/yellow] {name} — Not in PATH {req_label}")
@@ -297,7 +404,7 @@ def cmd_doctor():
         elif conflict:
             tool_issues += 1
             console.print(f"[yellow]![/yellow] {name} — Outdated {req_label}")
-            t_id = res.get("id")
+            
             t_data = registry_data.get(t_id) if t_id else None
             fix_cmd = None
             if t_data:
@@ -308,12 +415,41 @@ def cmd_doctor():
             if fix_cmd:
                 console.print(f"    → Fix: {fix_cmd}")
             else:
-                console.print("    → Fix: Update manually (no package mapping found)")
+                platform_cmd = get_fix_command(t_id, current_platform)
+                link = manual_links.get(t_id)
+                
+                if platform_cmd:
+                    console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
+                    if link:
+                        console.print(f"\n      Or install manually:\n      {link}")
+                elif link:
+                    console.print(f"    → Fix:\n      Update manually:\n      {link}")
+                    console.print(f"      [dim]Search: install {name} {current_platform if current_platform != 'darwin' else 'macos'}[/dim]")
+                    if current_platform == "windows":
+                        if has_winget():
+                            console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
+                        if has_choco():
+                            console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
+                else:
+                    console.print("    → Fix: Update manually (no package mapping found)")
+                    if current_platform == "windows":
+                        if has_winget():
+                            console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
+                        if has_choco():
+                            console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
         else:
             console.print(f"[green]✓[/green] {name} — OK {req_label}")
 
     console.print()
     console.print("[bold cyan]Python Packages[/bold cyan]")
+    if is_pipx_env():
+        console.print("[dim]Detected pipx environment — using pipx inject for package fixes[/dim]")
+    elif is_venv():
+        console.print("[dim]Detected virtual environment[/dim]")
+    
+    missing_pkgs = [pkg.get("name", "Unknown Package") for pkg in pkg_results if not pkg.get("installed") or not pkg.get("ok")]
+    show_individual_fix = len(missing_pkgs) == 1
+    
     for pkg in pkg_results:
         p_name = pkg.get("name", "Unknown Package")
         p_installed = pkg.get("installed")
@@ -325,11 +461,28 @@ def cmd_doctor():
         elif not p_installed or p_ver is None:
             pkg_issues += 1
             console.print(f"[red]✗[/red] {p_name} — Not found")
-            console.print(f"    → Fix: pip install {p_name}")
+            if show_individual_fix:
+                if is_pipx_env():
+                    console.print(f"    → Fix: pipx inject esim-tool-manager {p_name}")
+                else:
+                    console.print(f"    → Fix: pip install {p_name}")
         elif not p_ok:
             pkg_issues += 1
             console.print(f"[yellow]![/yellow] {p_name} — Outdated")
-            console.print(f"    → Fix: pip install --upgrade {p_name}")
+            if show_individual_fix:
+                if is_pipx_env():
+                    console.print(f"    → Fix: pipx inject esim-tool-manager {p_name}")
+                else:
+                    console.print(f"    → Fix: pip install --upgrade {p_name}")
+
+    if len(missing_pkgs) > 1:
+        console.print()
+        console.print("[bold yellow]Bulk Fix:[/bold yellow]")
+        pkgs_str = " ".join(missing_pkgs)
+        if is_pipx_env():
+            console.print(f"pipx inject esim-tool-manager {pkgs_str}")
+        else:
+            console.print(f"pip install {pkgs_str}")
 
     if tool_issues == 0 and pkg_issues == 0:
         console.print("\nAll tools and packages are in a healthy state.")
