@@ -20,14 +20,6 @@ The eSim Tool Manager provides a unified interface to ensure your electronic sim
 
 ---
 
-## Install in one line
-
-```bash
-pipx install git+https://github.com/mimo-to/eSim-Tool-manager.git
-```
-
----
-
 
 ## Problem vs. Solution
 
@@ -69,14 +61,86 @@ python run.py doctor
 
 ---
 
-## Quick Demo Flow (30 sec)
+## Quick Start (Recommended Flow)
 
-1. **Diagnose**: `python run.py doctor` (Find out what's missing)
-2. **Fix**: `python run.py repair --dry-run` (Preview the automated fixes)
-3. **Baseline**: `python run.py snapshot` (Save your known-good state)
-4. **Monitor**: `python run.py snapshot-diff` (Check for system regressions)
+Follow this exact flow to get started:
+
+### 1. Install (one-time)
+
+pipx install git+https://github.com/mimo-to/eSim-Tool-manager.git
+
+### 2. Check your system
+
+esim-tm doctor
+
+### 3. Fix issues (safe preview)
+
+esim-tm repair --dry-run
+
+### 4. Apply fixes
+
+esim-tm repair
+
+### 5. Save working state
+
+esim-tm snapshot
+
+### 6. Monitor changes later
+
+esim-tm snapshot-diff
+
 
 ---
+
+This is the recommended workflow for all users.
+
+---
+
+## Quick Run (Copy-Paste)
+
+```bash
+pipx install git+https://github.com/mimo-to/eSim-Tool-manager.git
+esim-tm doctor
+esim-tm repair --dry-run
+esim-tm repair
+esim-tm snapshot
+esim-tm snapshot-diff
+```
+
+---
+
+## What you should see
+
+After running `esim-tm doctor`, you should see:
+- **Missing Tools**: Clearly identified with a red `✗`.
+- **Automated Fixes**: Detailed repair commands (e.g., `pip install ...`).
+- **Health Score**: A summary of your environment readiness (e.g., `52/100`).
+
+*If you see these results, the tool is operating correctly.*
+
+---
+
+## Important
+
+After installing with pipx, always use:
+
+**esim-tm <command>**
+
+Do NOT use:
+
+`python run.py <command>`
+
+(This only works in local development)
+
+---
+
+## Want more details?
+
+See full guide:
+[docs/USAGE.md](docs/USAGE.md)
+
+---
+
 
 ## Command Table (Quick Reference)
 
