@@ -125,42 +125,16 @@ def install_all(registry_data: dict) -> list[dict]:
     return results
 
 def install_tool(tool_id, tool_data):
-    """
-    Install a single tool based on platform-specific package mapping.
-    Must NOT install all tools.
-    """
-
-    import platform
-    import subprocess
-
-    system = platform.system().lower()
-
-    cmd = None
-
-    if system == "windows":
-        pkg = tool_data.get("winget_pkg")
-        if pkg:
-            cmd = ["winget", "install", "--id", pkg, "-e", "--silent"]
-
-    elif system == "linux":
-        pkg = tool_data.get("apt_pkg") or tool_data.get("dnf_pkg")
-        if pkg:
-            cmd = ["sudo", "apt", "install", "-y", pkg]
-
-    elif system == "darwin":
-        pkg = tool_data.get("brew_pkg")
-        if pkg:
-            cmd = ["brew", "install", pkg]
-
-    if not cmd:
-        print(f"[!] No automated installer available for {tool_id}")
+    pkg = tool_data.get(pm.pkg_key(), "")
+    if not pkg:
         return False
-
+    cmd = pm.install_cmd(pkg)
     try:
-        # Added 30s timeout for evaluator-grade robustness
-        subprocess.run(cmd, check=True, timeout=30)
-        print(f"[✓] Installation attempted for {tool_id}")
-        return True
-    except Exception as e:
-        print(f"[✗] Installation failed: {e}")
-        return False
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            logger_log("INSTALL", tool_id, "SUCCESS")
+            return True
+    except Exception:
+        pass
+    logger_log("INSTALL", tool_id, "FAILED")
+    return False

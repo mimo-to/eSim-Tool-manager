@@ -1,7 +1,7 @@
 import json
 import datetime
-import sys
 from pathlib import Path
+from src.logger import log as _log
 
 def save_snapshot(tools, pkgs):
     path = Path.home() / ".esim_tool_manager"
@@ -18,9 +18,7 @@ def save_snapshot(tools, pkgs):
         with open(file, "w") as f:
             json.dump(data, f, indent=2)
     except Exception:
-        # Avoid printing error in JSON mode
-        if "--json" not in sys.argv:
-            print(f"[WARN] Failed to save snapshot to {file}", file=sys.stderr)
+        _log("SNAPSHOT", "save", "ERROR")
 
 def load_snapshot():
     file = Path.home() / ".esim_tool_manager" / "snapshot.json"
@@ -31,8 +29,7 @@ def load_snapshot():
         with open(file, "r") as f:
             return json.load(f)
     except Exception:
-        if "--json" not in sys.argv:
-            print(f"[WARN] Failed to load snapshot from {file}", file=sys.stderr)
+        _log("SNAPSHOT", "load", "ERROR")
         return None
 
 def get_diff(old, current_tools, current_pkgs):

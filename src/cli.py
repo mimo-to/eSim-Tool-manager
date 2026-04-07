@@ -13,41 +13,68 @@ from rich import box
 from src import registry, checker, installer, logger, health, repair, report, config, pip_checker, tui, snapshot, platform_mgr as pm
 
 console = Console()
-_args = None
-
-def is_verbose():
-    return _args and getattr(_args, "verbose", False) and "--json" not in sys.argv
-
-def is_pipx_env():
-    return "pipx" in sys.prefix.lower()
-
-def is_venv():
-    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
-
-def get_platform():
-    return platform.system().lower()
+console = Console()
 
 def is_fixed(res):
-    """Checks if a tool is fully installed and healthy."""
-    return (
-        bool(res.get("installed", False)) and
-        not bool(res.get("conflict", False)) and
-        not bool(res.get("path_issue", False))
-    )
+    return bool(res.get("installed")) and not bool(res.get("conflict")) and not bool(res.get("path_issue"))
 
-def has_winget():
-    return shutil.which("winget") is not None
+def is_pkg_available(cmd_search):
+    try:
+        result = subprocess.run(cmd_search, capture_output=True, text=True, timeout=5)
+        return result.returncode == 0 and result.stdout.strip()
+    except Exception:
+        return False
 
-def has_choco():
-    return shutil.which("choco") is not None
+INSTALL_COMMANDS = {
+    "ngspice": {
+        "linux": "sudo apt install ngspice",
+        "darwin": "brew install ngspice",
+        "windows": {"choco": "choco install ngspice -y"}
+    },
+    "verilator": {
+        "linux": "sudo apt install verilator",
+        "darwin": "brew install verilator",
+        "windows": None
+    },
+    "ghdl": {
+        "linux": "sudo apt install ghdl",
+        "darwin": "brew install ghdl",
+        "windows": {"winget": "winget install --id ghdl.ghdl.ucrt64.mcode -e --silent"}
+    },
+    "kicad": {
+        "windows": {
+            "winget": "winget install --id KiCad.KiCad -e --silent",
+            "choco": "choco install kicad -y"
+        }
+    }
+}
 
-def has_scoop():
-    return shutil.which("scoop") is not None
+MANUAL_LINKS = {
+    "ngspice": "https://ngspice.sourceforge.io",
+    "verilator": "https://www.veripool.org/verilator/",
+    "ghdl": "https://ghdl.github.io/ghdl/",
+}
+
+def get_fix_command(tool_id, plat):
+    cmd_data = INSTALL_COMMANDS.get(tool_id, {}).get(plat)
+    if not cmd_data:
+        return None
+    
+    if plat == "windows" and isinstance(cmd_data, dict):
+        if shutil.which("winget") is not None and cmd_data.get("winget"):
+            pkg_id = "KiCad.KiCad" if tool_id == "kicad" else tool_id
+            if is_pkg_available(["winget", "search", "--id", pkg_id]):
+                return cmd_data["winget"]
+        if shutil.which("choco") is not None and cmd_data.get("choco"):
+            if is_pkg_available(["choco", "search", tool_id]):
+                return cmd_data["choco"]
+        return None
+    return cmd_data
 
 def print_header():
     console.print(Panel("[bold cyan]eSim Tool Manager[/bold cyan]", expand=False))
 
-def cmd_list():
+def cmd_list(args):
     print_header()
     r = registry.load()
     results = checker.check_all(r)
@@ -63,7 +90,7 @@ def cmd_list():
         table.add_row(res["name"], installed, version, required)
     console.print(table)
 
-def cmd_dashboard():
+def cmd_dashboard(args):
     print_header()
     r = registry.load()
     results = checker.check_all(r)
@@ -81,8 +108,10 @@ def cmd_dashboard():
     console.print(f"Required: {h['required_installed']}/{h['required_total']}")
     console.print(f"Optional: {h['optional_installed']}/{h['optional_total']}")
 
-def cmd_repair(dry_run=False):
-    if is_verbose():
+def cmd_repair(args):
+    verbose = getattr(args, "verbose", False)
+    dry_run = getattr(args, "dry_run", False)
+    if verbose:
         console.print("[dim]Analyzing system state...[/dim]")
     print_header()
 
@@ -141,12 +170,18 @@ def cmd_repair(dry_run=False):
 
     console.print(t)
 
-def cmd_report():
+def cmd_report(args):
     print_header()
     path = report.generate()
     console.print(f"[bold green]Report saved at:[/bold green] {path}")
 
-def cmd_check(tool_id, json_mode=False):
+def cmd_check(args):
+    tool_id = getattr(args, "tool", None)
+    json_mode = getattr(args, "json", False)
+    verbose = getattr(args, "verbose", False)
+    if json_mode:
+        verbose = False
+
     if not json_mode:
         print_header()
     r = registry.load()
@@ -159,7 +194,7 @@ def cmd_check(tool_id, json_mode=False):
             return
         
         t_data = r[tool_id]
-        if is_verbose():
+        if verbose:
             console.print(f"[dim]Command: {t_data.get('check_cmd')}[/dim]")
             
         res = checker.check_tool(tool_id, t_data)
@@ -171,7 +206,7 @@ def cmd_check(tool_id, json_mode=False):
         console.print(f"{res['name']}: {installed} (Version: {version})")
     else:
         results = checker.check_all(r)
-        if is_verbose():
+        if verbose:
             for res in results:
                 if not res.get("installed"):
                     status = "Missing"
@@ -192,10 +227,11 @@ def cmd_check(tool_id, json_mode=False):
             table.add_row(res["name"], status)
         console.print(table)
 
-def cmd_install(tool_id):
+def cmd_install(args):
+    tool_id = getattr(args, "tool", None)
     print_header()
     r = registry.load()
-    if tool_id not in r:
+    if not tool_id or tool_id not in r:
         console.print(f"[red]Error: Unknown tool '{tool_id}'[/red]")
         return
     console.print(f"Installing {tool_id}...")
@@ -205,7 +241,8 @@ def cmd_install(tool_id):
     else:
         console.print(f"[red]✗ Failed to install {tool_id}[/red]")
 
-def cmd_update(tool_id):
+def cmd_update(args):
+    tool_id = getattr(args, "tool", None)
     print_header()
     r = registry.load()
     if tool_id:
@@ -232,7 +269,7 @@ def cmd_update(tool_id):
             table.add_row(t["name"], "[yellow]! Skipped[/yellow]", t["reason"])
         console.print(table)
 
-def cmd_log():
+def cmd_log(args):
     print_header()
     lines = logger.read_last(20)
     console.rule("[bold cyan]Last 20 Logs[/bold cyan]")
@@ -248,7 +285,7 @@ def cmd_log():
         else:
             console.print(line)
 
-def cmd_pkgs():
+def cmd_pkgs(args):
     print_header()
     results = pip_checker.check_all()
     
@@ -264,12 +301,13 @@ def cmd_pkgs():
 
     console.print(t)
 
-def cmd_doctor():
+def cmd_doctor(args):
+    verbose = getattr(args, "verbose", False)
     print_header()
     registry_data = registry.load()
     tool_results = checker.check_all(registry_data)
     
-    if is_verbose():
+    if verbose:
         for res in tool_results:
             if not res.get("installed"):
                 status = "Missing"
@@ -281,7 +319,7 @@ def cmd_doctor():
             
     pkg_results = pip_checker.check_all()
     
-    if is_verbose():
+    if verbose:
         for pkg in pkg_results:
             if not pkg.get("installed"):
                 p_status = "Missing"
@@ -298,6 +336,7 @@ def cmd_doctor():
 
     console.print("[bold cyan]Tools[/bold cyan]")
 
+    plat = platform.system().lower()
     for res in tool_results:
         name = res.get("name", "Unknown Tool")
         installed = res.get("installed")
@@ -306,73 +345,6 @@ def cmd_doctor():
         req_label = "(Required)" if res.get("required") else "(Optional)"
 
         t_id = res.get("id")
-        current_platform = get_platform()
-        
-        manual_links = {
-            "ngspice": "https://ngspice.sourceforge.io",
-            "verilator": "https://www.veripool.org/verilator/",
-            "ghdl": "https://ghdl.github.io/ghdl/",
-        }
-
-        install_commands = {
-            "ngspice": {
-                "linux": "sudo apt install ngspice",
-                "darwin": "brew install ngspice",
-                "windows": {
-                    "choco": "choco install ngspice -y"
-                }
-            },
-            "verilator": {
-                "linux": "sudo apt install verilator",
-                "darwin": "brew install verilator",
-                "windows": None
-            },
-            "ghdl": {
-                "linux": "sudo apt install ghdl",
-                "darwin": "brew install ghdl",
-                "windows": {
-                    "winget": "winget install --id ghdl.ghdl.ucrt64.mcode -e --silent"
-                }
-            },
-            "kicad": {
-                "windows": {
-                    "winget": "winget install --id KiCad.KiCad -e --silent",
-                    "choco": "choco install kicad -y"
-                }
-            }
-        }
-
-        def is_pkg_available(cmd_search):
-            try:
-                result = subprocess.run(
-                    cmd_search,
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                return result.returncode == 0 and result.stdout.strip()
-            except Exception:
-                return False
-
-        def get_fix_command(tool_id, plat):
-            cmd_data = install_commands.get(tool_id, {}).get(plat)
-            if not cmd_data:
-                return None
-            
-            if plat == "windows" and isinstance(cmd_data, dict):
-                # Winget validation
-                if has_winget() and cmd_data.get("winget"):
-                    pkg_id = "KiCad.KiCad" if tool_id == "kicad" else tool_id
-                    if is_pkg_available(["winget", "search", "--id", pkg_id]):
-                        return cmd_data["winget"]
-                
-                # Choco validation
-                if has_choco() and cmd_data.get("choco"):
-                    if is_pkg_available(["choco", "search", tool_id]):
-                        return cmd_data["choco"]
-                
-                return None
-            return cmd_data
 
         if not installed:
             tool_issues += 1
@@ -388,8 +360,8 @@ def cmd_doctor():
             if fix_cmd:
                 console.print(f"    → Fix: {fix_cmd}")
             else:
-                platform_cmd = get_fix_command(t_id, current_platform)
-                link = manual_links.get(t_id)
+                platform_cmd = get_fix_command(t_id, plat)
+                link = MANUAL_LINKS.get(t_id)
                 
                 if platform_cmd:
                     console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
@@ -397,18 +369,18 @@ def cmd_doctor():
                         console.print(f"\n      Or install manually:\n      {link}")
                 elif link:
                     console.print(f"    → Fix:\n      Install manually:\n      {link}")
-                    console.print(f"      [dim]Search: install {name} {current_platform if current_platform != 'darwin' else 'macos'}[/dim]")
-                    if current_platform == "windows":
-                        if has_winget():
+                    console.print(f"      [dim]Search: install {name} {plat if plat != 'darwin' else 'macos'}[/dim]")
+                    if plat == "windows":
+                        if shutil.which("winget") is not None:
                             console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
-                        if has_choco():
+                        if shutil.which("choco") is not None:
                             console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
                 else:
                     console.print("    → Fix: Install manually (no package mapping found)")
-                    if current_platform == "windows":
-                        if has_winget():
+                    if plat == "windows":
+                        if shutil.which("winget") is not None:
                             console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
-                        if has_choco():
+                        if shutil.which("choco") is not None:
                             console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
         elif path_issue:
             tool_issues += 1
@@ -428,8 +400,8 @@ def cmd_doctor():
             if fix_cmd:
                 console.print(f"    → Fix: {fix_cmd}")
             else:
-                platform_cmd = get_fix_command(t_id, current_platform)
-                link = manual_links.get(t_id)
+                platform_cmd = get_fix_command(t_id, plat)
+                link = MANUAL_LINKS.get(t_id)
                 
                 if platform_cmd:
                     console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
@@ -437,27 +409,31 @@ def cmd_doctor():
                         console.print(f"\n      Or install manually:\n      {link}")
                 elif link:
                     console.print(f"    → Fix:\n      Update manually:\n      {link}")
-                    console.print(f"      [dim]Search: install {name} {current_platform if current_platform != 'darwin' else 'macos'}[/dim]")
-                    if current_platform == "windows":
-                        if has_winget():
+                    console.print(f"      [dim]Search: install {name} {plat if plat != 'darwin' else 'macos'}[/dim]")
+                    if plat == "windows":
+                        if shutil.which("winget") is not None:
                             console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
-                        if has_choco():
+                        if shutil.which("choco") is not None:
                             console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
                 else:
                     console.print("    → Fix: Update manually (no package mapping found)")
-                    if current_platform == "windows":
-                        if has_winget():
+                    if plat == "windows":
+                        if shutil.which("winget") is not None:
                             console.print(f"      [dim]Try: winget search {name.lower()}[/dim]")
-                        if has_choco():
+                        if shutil.which("choco") is not None:
                             console.print(f"      [dim]Try: choco search {name.lower()}[/dim]")
         else:
             console.print(f"[green]✓[/green] {name} — OK {req_label}")
 
     console.print()
     console.print("[bold cyan]Python Packages[/bold cyan]")
-    if is_pipx_env():
+    
+    is_pipx = "pipx" in sys.prefix.lower()
+    is_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+    
+    if is_pipx:
         console.print("[dim]Detected pipx environment — using pipx inject for package fixes[/dim]")
-    elif is_venv():
+    elif is_venv:
         console.print("[dim]Detected virtual environment[/dim]")
     
     missing_pkgs = [pkg.get("name", "Unknown Package") for pkg in pkg_results if not pkg.get("installed") or not pkg.get("ok")]
@@ -475,7 +451,7 @@ def cmd_doctor():
             pkg_issues += 1
             console.print(f"[red]✗[/red] {p_name} — Not found")
             if show_individual_fix:
-                if is_pipx_env():
+                if is_pipx:
                     console.print(f"    → Fix: pipx inject esim-tool-manager {p_name}")
                 else:
                     console.print(f"    → Fix: pip install {p_name}")
@@ -483,7 +459,7 @@ def cmd_doctor():
             pkg_issues += 1
             console.print(f"[yellow]![/yellow] {p_name} — Outdated")
             if show_individual_fix:
-                if is_pipx_env():
+                if is_pipx:
                     console.print(f"    → Fix: pipx inject esim-tool-manager {p_name}")
                 else:
                     console.print(f"    → Fix: pip install --upgrade {p_name}")
@@ -492,7 +468,7 @@ def cmd_doctor():
         console.print()
         console.print("[bold yellow]Bulk Fix:[/bold yellow]")
         pkgs_str = " ".join(missing_pkgs)
-        if is_pipx_env():
+        if is_pipx:
             console.print(f"pipx inject esim-tool-manager {pkgs_str}")
         else:
             console.print(f"pip install {pkgs_str}")
@@ -503,7 +479,7 @@ def cmd_doctor():
     console.print()
     console.print(f"eSim Readiness: {health_data.get('score')}/100 ({health_data.get('status')})")
 
-def cmd_snapshot():
+def cmd_snapshot(args):
     r = registry.load()
     tools = checker.check_all(r)
     pkgs = pip_checker.check_all()
@@ -512,7 +488,7 @@ def cmd_snapshot():
     path = Path.home() / ".esim_tool_manager" / "snapshot.json"
     console.print(f"Snapshot saved → {path}")
 
-def cmd_snapshot_diff():
+def cmd_snapshot_diff(args):
     old = snapshot.load_snapshot()
 
     if not old:
@@ -538,7 +514,7 @@ def cmd_snapshot_diff():
     if not diff["new_issues"] and not diff["fixed_issues"]:
         console.print("No changes detected")
 
-def cmd_setup_help():
+def cmd_setup_help(args):
     print_header()
     
     console.print("[bold cyan]1. Getting Started[/bold cyan]")
@@ -607,9 +583,10 @@ INSTALL_STEPS = {
 }
 
 
-def cmd_assist():
+def cmd_assist(args):
     """Interactive assistant for tool installation."""
     registry_data = registry.load()
+    plat = platform.system().lower()
     
     # Discovery phase
     all_res = checker.check_all(registry_data)
@@ -678,7 +655,7 @@ def cmd_assist():
                 idx = 1
                 
                 # 1. Auto-install (if available)
-                has_auto = tool_data.get("install_cmd") or (get_platform() == "windows" and tool_data.get("winget_pkg"))
+                has_auto = tool_data.get("install_cmd") or (plat == "windows" and tool_data.get("winget_pkg"))
                 if has_auto:
                     options.append((str(idx), "[green]Auto-install[/green] (Try automatic repair)"))
                     auto_idx = str(idx)
@@ -894,42 +871,32 @@ def main():
     subparsers.add_parser("setup-help", parents=[parent_parser])
     subparsers.add_parser("assist", parents=[parent_parser])
     
-    global _args
-    _args = parser.parse_args()
-    args = _args
+    args = parser.parse_args()
     
-    if args.command == "list":
-        cmd_list()
-    elif args.command == "dashboard":
-        cmd_dashboard()
-    elif args.command == "repair":
-        cmd_repair(args.dry_run)
-    elif args.command == "report":
-        cmd_report()
-    elif args.command == "check":
-        cmd_check(args.tool, args.json)
-    elif args.command == "install":
-        cmd_install(args.tool)
-    elif args.command == "update":
-        cmd_update(args.tool)
-    elif args.command == "log":
-        cmd_log()
-    elif args.command == "pkgs":
-        cmd_pkgs()
-    elif args.command == "tui":
-        tui.run()
-    elif args.command == "doctor":
-        cmd_doctor()
-    elif args.command == "snapshot":
-        cmd_snapshot()
-    elif args.command == "snapshot-diff":
-        cmd_snapshot_diff()
-    elif args.command == "setup-help":
-        cmd_setup_help()
-    elif args.command == "assist":
-        cmd_assist()
-    else:
+    dispatch = {
+        "list": cmd_list,
+        "dashboard": cmd_dashboard,
+        "repair": cmd_repair,
+        "report": cmd_report,
+        "check": cmd_check,
+        "install": cmd_install,
+        "update": cmd_update,
+        "log": cmd_log,
+        "pkgs": cmd_pkgs,
+        "tui": tui.run,
+        "doctor": cmd_doctor,
+        "snapshot": cmd_snapshot,
+        "snapshot-diff": cmd_snapshot_diff,
+        "setup-help": cmd_setup_help,
+        "assist": cmd_assist,
+    }
+    
+    cmd = dispatch.get(args.command)
+    if not cmd:
         parser.print_help()
+        return
+        
+    cmd(args)
 
 if __name__ == "__main__":
     main()

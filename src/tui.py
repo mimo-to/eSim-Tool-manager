@@ -158,7 +158,7 @@ class ToolManagerApp(App):
     def action_show_packages(self):
         self.switch_screen("packages")
 
-def run():
+def run(args=None):
     ToolManagerApp().run()
 
 if __name__ == "__main__":
