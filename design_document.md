@@ -128,9 +128,9 @@ The registry supports extension via a user-local `custom_tools.toml` file locate
 
 ---
 
-## 9. Requirement Mapping (FOSSEE Compliance)
+## 9. Evaluation Requirement Mapping
 
-The following table maps the official eSim Tool Manager evaluation requirements to the implemented codebase modules.
+The following table maps the core evaluation requirements to the implemented codebase modules.
 
 | ID | Requirement | Implementation Detail | Modules |
 | :--- | :--- | :--- | :--- |

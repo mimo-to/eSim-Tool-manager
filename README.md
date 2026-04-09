@@ -17,7 +17,6 @@
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platforms">
     <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
     <img src="https://img.shields.io/badge/System_Health-Automated-orange" alt="Status">
-    <img src="https://img.shields.io/badge/FOSSEE-Requirement_Mapped-brightgreen" alt="FOSSEE">
 </p>
 
 <p>
@@ -179,7 +178,7 @@ esim-tm doctor
 
 ## Why It Stands Out
 
--   **Full FOSSEE Compliance**: Explicitly implements all 6 core requirements (Install, Update, Config, Dependency, UI, Platform).
+-   **High Performance Standards**: Explicitly implements all 6 core requirements (Install, Update, Config, Dependency, UI, Platform).
 -   **Adaptive Installer**: Intelligently toggles between `winget`, `choco`, `apt`, `dnf`, and `brew` based on system availability.
 -   **Deterministic Matching**: Uses strict keyword and word-boundary matching to prevent false-positive tool detection.
 -   **Professional UX**: Seamlessly transitions between CLI, machine-readable JSON, and high-fidelity TUI dashboard.
