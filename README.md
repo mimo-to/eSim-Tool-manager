@@ -7,26 +7,35 @@
 </p>
 
 <p>
-    An intelligent diagnostic and repair engine designed to automate the installation, 
-    configuration, and monitoring of the eSim EDA toolchain.
+    <em>One command to diagnose, repair, and manage a complete eSim toolchain.</em>
     <br />
-    <em>Built with Python, Rich, and Textual.</em>
+    Built with Python, Rich, and Textual.
 </p>
 
 <p align="center">
-    <img src="https://img.shields.io/badge/Python-3.8%2B-blue" alt="Python">
+    <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python">
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platforms">
     <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
     <img src="https://img.shields.io/badge/System_Health-Automated-orange" alt="Status">
+    <img src="https://img.shields.io/badge/FOSSEE-Requirement_Mapped-brightgreen" alt="FOSSEE">
 </p>
 
 <p>
     <a href="https://github.com/mimo-to/eSim-Tool-manager"><strong>Source Code</strong></a> • 
-    <a href="design_document.md"><strong>Architecture Docs</strong></a> • 
-    <a href="Project_outcomes/health_report.html"><strong>Sample Report</strong></a>
+    <a href="design_document.md"><strong>Design Document</strong></a> • 
+    <a href="docs/ARCHITECTURE.md"><strong>Architecture</strong></a>
 </p>
 
 </div>
+
+---
+
+> [!IMPORTANT]
+> **Prerequisite**: Python 3.9+
+
+## Why This Exists
+
+Setting up a professional eSim environment requires multiple system tools (Ngspice, Verilator, GHDL), complex Python dependencies, and correct PATH configurations. This process is historically error-prone for students and engineers. **eSim Tool Manager** automates this entire lifecycle—from initial discovery to automated repair—ensuring a stable EDA environment with a single command.
 <br />
 
 ---
@@ -44,15 +53,17 @@ For students and electronics engineers, setting up EDA tools like Ngspice, Veril
 
 ---
 
-## Key Features
+## Core Command Reference
 
--   **`esim-tm doctor`**: The primary diagnostic suite. It performs a deep-scan of system executables and Python packages, generating platform-aware fix commands.
--   **`esim-tm assist`**: A state-machine driven recovery system. It guides you through missing dependencies with a "one-click" auto-install or manual guidance loop.
--   **Intelligent Update Engine**: Uses semantic version normalization to ensure your installed tools meet the minimum architectural requirements.
--   **Snapshot & Diff**: Capture your entire environment state to a JSON file. Use `snapshot-diff` after a system update to find exactly what changed in your toolchain.
--   **CI-Ready JSON Output**: Use `--json` with any command for machine-readable diagnostics, ideal for integration into automated build pipelines.
--   **TUI Dashboard**: A modern, terminal-based interactive dashboard built with Textual for real-time monitoring of tool readiness.
--   **Platform Support**: Specialized logic for Windows (Winget/Choco) and Linux (Pip/Native) environments.
+| Command | Purpose |
+| :--- | :--- |
+| `doctor` | Full system diagnostic and health check |
+| `assist` | Guided repair assistant with auto-recheck |
+| `repair` | Batch automated fix for required tools |
+| `check --json` | Machine-readable health for CI/CD |
+| `snapshot` | Capture environment state baseline |
+| `tui` | Interactive visual dashboard |
+| `report` | Generate professional HTML diagnostics |
 
 ---
 
@@ -166,15 +177,13 @@ esim-tm doctor
 
 ---
 
-## Requirements
+## Why It Stands Out
 
--   **Python 3.8+**
--   **Supported Platforms**:
-    -   **Windows**: winget / choco / pip
-    -   **Linux**: apt / dnf / pip
-    -   **macOS**: brew / pip
-
----
+-   **Full FOSSEE Compliance**: Explicitly implements all 6 core requirements (Install, Update, Config, Dependency, UI, Platform).
+-   **Adaptive Installer**: Intelligently toggles between `winget`, `choco`, `apt`, `dnf`, and `brew` based on system availability.
+-   **Deterministic Matching**: Uses strict keyword and word-boundary matching to prevent false-positive tool detection.
+-   **Professional UX**: Seamlessly transitions between CLI, machine-readable JSON, and high-fidelity TUI dashboard.
+-   **Engineering Depth**: Feature-rich version engine supporting tuple-based comparison for non-standard EDA version strings.
 
 ## System Architecture
 

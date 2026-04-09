@@ -16,7 +16,29 @@ Manual setup of eSim tools (Ngspice, Verilator, GHDL, KiCad) is error-prone due 
 
 ---
 
-## 2. Technical Architecture
+## 2. Design Decisions
+
+-   **Multi-Manager Strategy**: Chose to support `winget`, `choco`, `apt`, `dnf`, and `brew` concurrently rather than a single manager to maximize support for diverse Windows and Linux distributions.
+-   **Deterministic Matching**: Implemented strict keyword and word-boundary matching logic in the search phase to avoid false-positive installations of similarly named packages (e.g., `libspice` vs `spice`).
+-   **Structured Result Objects**: Every component (Checker, Installer, Assist) returns structured dictionaries rather than raw strings or booleans, ensuring predictable behavior and easier debugging.
+-   **Recovery-First Philosophy**: Prioritized the recursive "Assist" mode over fully automated batch repairs to give users agency and transparency over system changes.
+
+---
+
+## 3. Failure Handling Strategy
+
+The system categorizes failures into deterministic types to provide actionable feedback:
+
+-   **`no_package_manager`**: No supported system package manager was detected on the host OS.
+-   **`not_found_in_manager`**: The search phase failed to find the package in any of the available managers.
+-   **`install_failed`**: The install command executed but failed either via exit code or keyword detection in logs.
+-   **`unsupported_platform`**: The specific tool/manager combination is not supported on the user's OS.
+
+This classification allows `esim-tm assist` to intelligently switch between "Try automatic" and "Display manual steps" modes.
+
+---
+
+## 4. Technical Architecture
 
 | Module | Responsibility |
 | :--- | :--- |
@@ -104,24 +126,28 @@ The registry supports extension via a user-local `custom_tools.toml` file locate
 
 ---
 
-## 9. Requirement Mapping
+---
 
-| ID | Requirement | Modules |
-| :--- | :--- | :--- |
-| R1 | Tool Discovery & Registry | `registry.py`, `tools.toml` |
-| R2 | Platform-Aware Health Check | `checker.py`, `platform_mgr.py` |
-| R3 | Intelligent Versioning | `version_utils.py` |
-| R4 | Automated Repair & Assist | `repair.py`, `installer.py`, `cli.py` |
-| R5 | System Snapshots & Diffing | `snapshot.py` |
-| R6 | Real-time Dashboard & Reporting | `tui.py`, `report.py`, `health.py` |
+## 9. Requirement Mapping (FOSSEE Compliance)
+
+The following table maps the official eSim Tool Manager evaluation requirements to the implemented codebase modules.
+
+| ID | Requirement | Implementation Detail | Modules |
+| :--- | :--- | :--- | :--- |
+| **R1** | **Tool Discovery & Registry** | Dynamic loading of EDA tools via extensible TOML registry. | `src/registry.py`, `tools.toml` |
+| **R2** | **Platform-Aware Health Check** | OS-specific diagnostic commands for Windows, Linux, and macOS. | `src/checker.py`, `src/platform_mgr.py` |
+| **R3** | **Intelligent Versioning** | Semantic-aware comparison and tuple normalization for EDA binaries. | `src/version_utils.py` |
+| **R4** | **Automated Repair & Assist** | Multi-manager fallback system with recursive re-check state machine. | `src/installer.py`, `src/cli.py` |
+| **R5** | **System Snapshots & Diffing** | Persistence of environment state for regression detection. | `src/snapshot.py` |
+| **R6** | **Visual Monitoring** | Professional TUI dashboard and HTML reporting for health scores. | `src/tui.py`, `src/report.py`, `src/health.py` |
 
 ---
 
 ## 10. Failure Handling
-The system is built on "Defensive Engineering" principles:
+
+The system is built on "Defensive Engineering" principles to ensure stability during system-level operations:
 
 - **Subprocess Timeout**: Executable checks are capped at **30s** to prevent terminal hangs.
-- **Safe Parsing**: TOML and JSON loaders use `try/except` blocks with meaningful logging.
-- **Logger Fallback**: Standardizes all internal alerts in `esim_tm.log` with `ERROR` and `WARNING` severity.
-- **Registry Validation**: Prevents ID conflicts from breaking core tool definitions.
-- **Snapshot Error Handling**: Failures in saving or loading snapshots are logged as `ERROR` and caught gracefully to prevent CLI crashes.
+- **Safe Parsing**: TOML and JSON loaders use `try/except` blocks with meaningful logging of corruption.
+- **Deterministic Match**: Prevents false-positive installs by verifying package search results against strict word boundaries.
+- **Atomic Registry Merging**: Validates custom tool schema before merging into the core tool registry.

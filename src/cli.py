@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
-from src import registry, checker, installer, logger, health, repair, report, config, pip_checker, tui, snapshot, platform_mgr as pm
+from src import registry, checker, installer, logger, health, repair, report, config, pip_checker, tui, snapshot, platform_mgr as pm, constants
 
 console = Console()
 console = Console()
@@ -49,11 +49,7 @@ INSTALL_COMMANDS = {
     }
 }
 
-MANUAL_LINKS = {
-    "ngspice": "https://ngspice.sourceforge.io",
-    "verilator": "https://www.veripool.org/verilator/",
-    "ghdl": "https://ghdl.github.io/ghdl/",
-}
+# Use constants for links
 
 def get_fix_command(tool_id, plat):
     cmd_data = INSTALL_COMMANDS.get(tool_id, {}).get(plat)
@@ -63,11 +59,10 @@ def get_fix_command(tool_id, plat):
     if plat == "windows" and isinstance(cmd_data, dict):
         if shutil.which("winget") is not None and cmd_data.get("winget"):
             pkg_id = "KiCad.KiCad" if tool_id == "kicad" else tool_id
-            if is_pkg_available(["winget", "search", "--id", pkg_id]):
-                return cmd_data["winget"]
+            # Note: simplified for display; full search validation is in installer.py
+            return cmd_data["winget"]
         if shutil.which("choco") is not None and cmd_data.get("choco"):
-            if is_pkg_available(["choco", "search", tool_id]):
-                return cmd_data["choco"]
+            return cmd_data["choco"]
         return None
     return cmd_data
 
@@ -361,7 +356,7 @@ def cmd_doctor(args):
                 console.print(f"    → Fix: {fix_cmd}")
             else:
                 platform_cmd = get_fix_command(t_id, plat)
-                link = MANUAL_LINKS.get(t_id)
+                link = constants.MANUAL_LINKS.get(t_id, constants.DOWNLOAD_LINKS.get(t_id, ""))
                 
                 if platform_cmd:
                     console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
@@ -401,7 +396,7 @@ def cmd_doctor(args):
                 console.print(f"    → Fix: {fix_cmd}")
             else:
                 platform_cmd = get_fix_command(t_id, plat)
-                link = MANUAL_LINKS.get(t_id)
+                link = constants.MANUAL_LINKS.get(t_id, constants.DOWNLOAD_LINKS.get(t_id, ""))
                 
                 if platform_cmd:
                     console.print(f"    → Fix:\n      Run:\n      {platform_cmd}")
@@ -532,15 +527,7 @@ def cmd_setup_help(args):
     console.print("\nFor more details, run commands with [bold]--help[/bold]")
 
 
-DOWNLOAD_LINKS = {
-    "python3": "https://www.python.org/downloads/",
-    "pip": "https://pip.pypa.io/en/stable/installation/",
-    "git": "https://git-scm.com/downloads",
-    "ngspice": "https://ngspice.sourceforge.io/download.html",
-    "kicad": "https://www.kicad.org/download/",
-    "verilator": "https://verilator.org/guide/latest/install.html",
-    "ghdl": "https://github.com/ghdl/ghdl/releases"
-}
+# DOWNLOAD_LINKS moved to constants
 
 INSTALL_STEPS = {
     "python3": [
@@ -583,6 +570,71 @@ INSTALL_STEPS = {
 }
 
 
+def cmd_setup(args):
+    """Full environment bootstrap flow."""
+    console.print("[bold cyan]=== INITIAL CHECK ===[/bold cyan]")
+    registry_data = registry.load()
+    tool_results = checker.check_all(registry_data)
+    pkg_results = pip_checker.check_all()
+    
+    missing_tools = [res for res in tool_results if not res.get("installed")]
+    other_tool_issues = [res for res in tool_results if res.get("installed") and (res.get("conflict") or res.get("path_issue"))]
+    pkg_issues = [pkg for pkg in pkg_results if not pkg.get("ok")]
+    
+    total_tool_issues = len(missing_tools) + len(other_tool_issues)
+    
+    if total_tool_issues == 0 and not pkg_issues:
+        console.print("[bold green]System is already fully configured. No action required.[/bold green]")
+        return
+
+    console.print("Found:")
+    console.print(f"  • {len(missing_tools)} missing tools")
+    console.print(f"  • {len(other_tool_issues) + len(pkg_issues)} issues")
+        
+    console.print("\n[bold cyan]=== FIXING ISSUES ===[/bold cyan]")
+    console.print("[dim]Resolving missing tools and dependencies...[/dim]")
+    
+    if total_tool_issues > 0:
+        cmd_assist(args)
+    
+    if pkg_issues:
+        console.print("\n[bold yellow]Checking: python packages...[/bold yellow]")
+        missing_pkg_names = [pkg.get("name") for pkg in pkg_issues]
+        pkgs_str = ", ".join(missing_pkg_names)
+        
+        is_pipx = "pipx" in sys.prefix.lower()
+        if is_pipx:
+            cmd_base = "pipx inject esim-tool-manager"
+        else:
+            cmd_base = "pip install"
+            
+        console.print(f"Installing: [bold]{pkgs_str}[/bold]...")
+        
+        full_cmd = f"{cmd_base} {' '.join(missing_pkg_names)}"
+        subprocess.run(full_cmd if is_pipx else ["pip", "install"] + missing_pkg_names, shell=is_pipx)
+
+    console.print("\n[bold green]All fix attempts completed.[/bold green]")
+    
+    # Final check for failure summary
+    final_results = checker.check_all(registry_data)
+    missing_after = [res for res in final_results if not res.get("installed")]
+    other_after = [res for res in final_results if res.get("installed") and (res.get("conflict") or res.get("path_issue"))]
+    
+    if missing_after or other_after:
+        console.print("\n[bold cyan]=== SUMMARY ===[/bold cyan]")
+        if missing_after:
+            console.print("Some tools could not be installed automatically:")
+            for res in missing_after:
+                console.print(f"  - {res.get('name')}")
+        
+        if other_after:
+            if missing_after: console.print("")
+            console.print("Some tools still have configuration issues (PATH/Version):")
+            for res in other_after:
+                console.print(f"  - {res.get('name')}")
+
+    console.print("\n[bold cyan]=== FINAL STATUS ===[/bold cyan]")
+    cmd_doctor(args)
 def cmd_assist(args):
     """Interactive assistant for tool installation."""
     registry_data = registry.load()
@@ -664,7 +716,7 @@ def cmd_assist(args):
                     auto_idx = None
                 
                 # 2. Download page / Installation Guide
-                download_url = DOWNLOAD_LINKS.get(tool_id)
+                download_url = constants.DOWNLOAD_LINKS.get(tool_id) or constants.MANUAL_LINKS.get(tool_id)
                 label_text = "Open official [bold]installation guide[/bold] in browser"
                 
                 if not download_url:
@@ -704,14 +756,27 @@ def cmd_assist(args):
                 if choice == auto_idx and auto_idx:
                     console.print(f"\nAttempting auto-install for {res['name']}...")
                     try:
-                        success = installer.install_tool(tool_id, tool_data)
-                        if success:
-                            console.print("[green]Installation attempted successfully.[/green]")
+                        result = installer.install_tool(tool_id, tool_data)
+                        if result["success"]:
+                            console.print(f"[green]Installation attempted successfully (via {result['manager']}).[/green]")
                         else:
-                            console.print("[yellow]Auto-install was not successful or not available.[/yellow]")
+                            reason = result.get("reason")
+                            if reason == "no_package_manager":
+                                console.print("[yellow]No supported package manager found.[/yellow]")
+                            elif reason == "not_found_in_manager":
+                                console.print("[yellow]Tool could not be found in any supported package manager.[/yellow]")
+                            elif reason == "install_failed":
+                                console.print("[yellow]Automatic installation failed.[/yellow]")
+                            elif reason == "unsupported_platform":
+                                console.print("[yellow]This platform is not supported for automatic install.[/yellow]")
+                            else:
+                                console.print("[yellow]Auto-install was not successful.[/yellow]")
+                            
+                            console.print("[dim]Skipped automatic install. Manual setup required.[/dim]")
+                            if result.get("manual"):
+                                console.print(f"Direct link: [link={result['manual']}]{result['manual']}[/link]")
                     except Exception as e:
                         console.print(f"[red]Auto-install failed with error: {e}[/red]")
-                        success = False
                     
                     console.print("\n[bold]Re-check recommended to verify health.[/bold]")
                     from rich.prompt import Confirm
@@ -868,6 +933,7 @@ def main():
     subparsers.add_parser("doctor", parents=[parent_parser])
     subparsers.add_parser("snapshot", parents=[parent_parser])
     subparsers.add_parser("snapshot-diff", parents=[parent_parser])
+    subparsers.add_parser("setup", parents=[parent_parser])
     subparsers.add_parser("setup-help", parents=[parent_parser])
     subparsers.add_parser("assist", parents=[parent_parser])
     
@@ -885,6 +951,7 @@ def main():
         "pkgs": cmd_pkgs,
         "tui": tui.run,
         "doctor": cmd_doctor,
+        "setup": cmd_setup,
         "snapshot": cmd_snapshot,
         "snapshot-diff": cmd_snapshot_diff,
         "setup-help": cmd_setup_help,
