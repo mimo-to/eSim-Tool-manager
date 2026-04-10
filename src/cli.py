@@ -13,7 +13,6 @@ from rich import box
 from src import registry, checker, installer, logger, health, repair, report, config, pip_checker, tui, snapshot, platform_mgr as pm, constants
 
 console = Console()
-console = Console()
 
 def is_fixed(res):
     return bool(res.get("installed")) and not bool(res.get("conflict")) and not bool(res.get("path_issue"))

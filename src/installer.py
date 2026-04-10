@@ -17,10 +17,15 @@ def _is_pkg_match(output: str, pkg: str) -> bool:
         # 2. Prefix match (with common separators)
         if line.startswith(pkg + " ") or line.startswith(pkg + "/") or line.startswith(pkg + "-"):
             return True
-        # 3. Word boundary match (simple check)
-        words = line.replace("/", " ").replace("-", " ").split()
+        # 3. Word boundary match (handles winget KiCad.KiCad etc.)
+        words = line.replace("/", " ").replace("-", " ").replace(".", " ").split()
         if pkg in words:
             return True
+        # 4. Fallback for dot-names (match first part or full segments)
+        if "." in pkg:
+            pkg_base = pkg.split(".")[0]
+            if pkg_base in words:
+                return True
             
     return False
 

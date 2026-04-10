@@ -5,6 +5,7 @@ def scan() -> dict:
     results = checker.check_all(registry.load())
     missing_required = []
     missing_optional = []
+    conflicted = []
     
     for res in results:
         if not res["installed"]:
@@ -12,12 +13,15 @@ def scan() -> dict:
                 missing_required.append(res["id"])
             else:
                 missing_optional.append(res["id"])
+        elif res.get("conflict"):
+            conflicted.append(res["id"])
                 
     missing_pkgs = pip_checker.missing()
     
     return {
         "missing_required": missing_required,
         "missing_optional": missing_optional,
+        "conflicted": conflicted,
         "missing_pkgs": missing_pkgs,
         "results": results
     }
@@ -52,13 +56,21 @@ def repair_all() -> dict:
     failed = []
     skipped = []
     
-    for tool_id in scan_result["missing_required"]:
+    # Combine missing required and conflicted tools for repair
+    all_targets = scan_result["missing_required"] + scan_result["conflicted"]
+    
+    for tool_id in all_targets:
         tool_data = r[tool_id]
         if not tool_data.get(pm.pkg_key()):
             skipped.append(tool_id)
             continue
 
-        res = installer.install(tool_id, tool_data)
+        # Use update() for conflicts, install() for missing
+        if tool_id in scan_result["conflicted"]:
+            res = installer.update(tool_id, tool_data)
+        else:
+            res = installer.install(tool_id, tool_data)
+            
         if res["success"]:
             fixed.append(tool_id)
         else:

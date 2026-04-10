@@ -1,219 +1,283 @@
 <div align="center">
 
+<br />
+
 <h1>eSim Tool Manager</h1>
 
-<p>
-    <strong>Automated Tool Management System for eSim Environment</strong>
-</p>
+<p><strong>Diagnose. Repair. Monitor. One command for your entire EDA toolchain.</strong></p>
 
-<p>
-    <em>One command to diagnose, repair, and manage a complete eSim toolchain.</em>
-    <br />
-    Built with Python, Rich, and Textual.
-</p>
+<p><em>Built with Python · Rich · Textual</em></p>
 
-<p align="center">
-    <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python">
-    <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platforms">
-    <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-    <img src="https://img.shields.io/badge/System_Health-Automated-orange" alt="Status">
-</p>
+<br />
 
-<p>
-    <a href="https://github.com/mimo-to/eSim-Tool-manager"><strong>Source Code</strong></a> • 
-    <a href="design_document.md"><strong>Design Document</strong></a> • 
-    <a href="docs/ARCHITECTURE.md"><strong>Architecture</strong></a>
-</p>
+[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org) [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey?style=flat-square)](https://github.com/mimo-to/eSim-Tool-manager) [![CI](https://img.shields.io/badge/CI-Passing-238636?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/mimo-to/eSim-Tool-manager/actions) [![Code Style](https://img.shields.io/badge/Style-PEP8-informational?style=flat-square)](https://peps.python.org/pep-0008/)
+
+<br />
+
+[**Quickstart**](#quickstart) · [**Commands**](#command-reference) · [**Architecture**](docs/ARCHITECTURE.md) · [**Design**](design_document.md) · [**Features**](docs/FEATURES.md) · [**Workflows**](docs/USAGE.md)
+
+<br />
 
 </div>
 
 ---
 
-> [!IMPORTANT]
-> **Prerequisite**: Python 3.9+
+## The Problem
 
-## Why This Exists
+Setting up an EDA environment by hand is painful. You need the right versions of Ngspice, Verilator, GHDL, KiCad, and a specific set of Python packages — all on different platforms with conflicting PATH behaviours and non-standard version strings. A single misconfigured tool silently breaks simulation runs.
 
-Setting up a professional eSim environment requires multiple system tools (Ngspice, Verilator, GHDL), complex Python dependencies, and correct PATH configurations. This process is historically error-prone for students and engineers. **eSim Tool Manager** automates this entire lifecycle—from initial discovery to automated repair—ensuring a stable EDA environment with a single command.
-<br />
+`esim-tm` is a purpose-built manager that handles the entire lifecycle: discovery, installation, version validation, repair, and regression detection. It works on Linux, Windows, and macOS without changing how you work.
 
 ---
 
-## Project Overview
+## What It Does
 
-The **eSim Tool Manager (esim-tm)** is a professional utility created to solve the "Dependency Hell" often associated with eSim environment setups. 
+```
+esim-tm doctor
+```
 
-For students and electronics engineers, setting up EDA tools like Ngspice, Verilator, and GHDL involves complex PATH configurations and version-specific dependencies. **esim-tm** exists to eliminate these barriers by providing:
+```
+┌─────────────────────────────┐
+│      eSim Tool Manager      │
+└─────────────────────────────┘
 
--   **Deterministic Diagnostics**: A "Single Command" system health check.
--   **Intelligent Repair**: An interactive assistant that understands platform-specific package managers (winget, choco, apt, pip).
--   **Version Awareness**: Automatic detection of outdated tools vs project requirements.
--   **Environment Stability**: Snapshotting your system state to detect breaking changes instantly.
+Tools
+✓ Python 3      — OK  (Required)   v3.11.5
+✓ pip           — OK  (Required)   v23.2
+✓ Git           — OK  (Required)   v2.42.0
+✗ Ngspice       — Not found  (Required)
+    → Fix: sudo apt-get install -y ngspice
+⚠ Verilator     — Outdated  (Optional)
+    → Fix: sudo apt-get upgrade -y verilator
+
+Python Packages
+✓ numpy         — OK
+✓ matplotlib    — OK
+✗ pyqt5         — Not found
+    → Fix: pip install pyqt5
+
+eSim Readiness: 71/100 (Good)
+```
 
 ---
 
-## Core Command Reference
+## Quickstart
 
-| Command | Purpose |
-| :--- | :--- |
-| `doctor` | Full system diagnostic and health check |
-| `assist` | Guided repair assistant with auto-recheck |
-| `repair` | Batch automated fix for required tools |
-| `check --json` | Machine-readable health for CI/CD |
-| `snapshot` | Capture environment state baseline |
-| `tui` | Interactive visual dashboard |
-| `report` | Generate professional HTML diagnostics |
+**Prerequisites:** Python 3.9+
 
----
-
-## Demo / Usage Flow
-
-### 0. Prerequisite
-Make sure Python (3.8+) is installed.
-
-### 1. Install the Tool
-Install globally using `pipx` (recommended):
+### Install via pipx (recommended)
 
 ```bash
 python -m pip install pipx
 pipx install git+https://github.com/mimo-to/eSim-Tool-manager.git
 ```
 
-This installs the `esim-tm` command on your system.
-
-### 2. Full System Diagnostic
-Run the doctor to analyze your system:
+### Install from source
 
 ```bash
+git clone https://github.com/mimo-to/eSim-Tool-manager.git
+cd eSim-Tool-manager
+pip install rich textual "tomli>=2.0.0"
+python run.py doctor
+```
+
+### First run
+
+```bash
+# 1. Check what's broken
 esim-tm doctor
-```
 
-### 3. Interactive Repair
-Automatically fix missing or outdated tools:
-
-```bash
+# 2. Fix it interactively
 esim-tm assist
-```
 
-### 4. Machine-Readable Health Check
-Generate JSON output for automation or CI:
-
-```bash
-esim-tm check --json
-```
-
-### 5. Snapshot & Conflict Detection
-Save and compare environment state:
-
-```bash
+# 3. Save a baseline snapshot
 esim-tm snapshot
+
+# 4. Next time — see what changed
 esim-tm snapshot-diff
-```
-
-### 6. Professional Reporting
-Generate an HTML diagnostic report:
-
-```bash
-esim-tm report
-```
-
-### 7. Interactive TUI Dashboard
-Monitor system status visually:
-
-```bash
-esim-tm tui
 ```
 
 ---
 
 ## Command Reference
 
-| Command | Description |
-|--------|------------|
-| `esim-tm doctor` | Full system diagnostic |
-| `esim-tm assist` | Interactive repair assistant |
-| `esim-tm check` | Dependency check |
-| `esim-tm check --json` | Machine-readable output |
-| `esim-tm install <tool>` | Install a specific tool |
-| `esim-tm update` | Update installed tools |
-| `esim-tm repair` | Auto-fix issues |
-| `esim-tm snapshot` | Save environment state |
-| `esim-tm snapshot-diff` | Detect environment changes |
-| `esim-tm report` | Generate HTML report |
-| `esim-tm tui` | Launch interactive dashboard |
-| `esim-tm log` | View system logs |
+| Command                  | What it does                                                    |
+| ------------------------ | --------------------------------------------------------------- |
+| `esim-tm doctor`         | Full system diagnostic — tools + Python packages + health score |
+| `esim-tm assist`         | Interactive step-by-step repair assistant                       |
+| `esim-tm repair`         | Batch auto-fix for all missing required tools                   |
+| `esim-tm check`          | Dependency status table                                         |
+| `esim-tm check --json`   | Machine-readable JSON output for CI/CD                          |
+| `esim-tm install <tool>` | Install a specific tool by ID                                   |
+| `esim-tm update`         | Update all installed tools                                      |
+| `esim-tm update <tool>`  | Update a specific tool                                          |
+| `esim-tm snapshot`       | Save current environment state to disk                          |
+| `esim-tm snapshot-diff`  | Compare current state against last snapshot                     |
+| `esim-tm report`         | Generate a full HTML diagnostic report                          |
+| `esim-tm tui`            | Open the interactive terminal dashboard                         |
+| `esim-tm list`           | Show all tracked tools with install status                      |
+| `esim-tm pkgs`           | Show Python package dependency status                           |
+| `esim-tm log`            | View last 20 log entries                                        |
+| `esim-tm dashboard`      | Show health score summary                                       |
+| `esim-tm setup`          | Full environment bootstrap (doctor + assist + verify)           |
+| `esim-tm setup-help`     | Show recommended command workflow                               |
 
 ---
 
-## How It Works
+## How the Pipeline Works
 
-The system follows a deterministic pipeline:
+Every command follows the same deterministic execution path:
 
-**User Command** → **CLI** → **Registry** → **Checker** → **Platform Manager** → **Installer** → **Logger** → **Output**
-
-1.  **CLI**: Parses the user command and flags.
-2.  **Registry**: Loads tool definitions from `tools.toml` and `custom_tools.toml`.
-3.  **Checker**: Validates tool availability and extracts version strings.
-4.  **Platform Manager**: Generates OS-specific installation and repair commands.
-5.  **Installer**: Executes fixes using system package managers (winget, choco, apt).
-6.  **Logger**: Records internal events to `esim_tm.log`.
-7.  **Output**: Renders the final state via CLI (Rich), JSON, or TUI (Textual).
-
----
-
-## Example Output
-
-```bash
-esim-tm doctor
-✔ python3        Installed (3.11.5)
-✖ ngspice        Not Found
-→ Fix: winget install ngspice
-
-✔ git            Installed
-⚠ verilator      Outdated
-→ Fix: sudo apt install verilator
+```
+User Input
+    │
+    ▼
+┌─────────┐     ┌──────────┐     ┌─────────┐     ┌──────────────┐
+│   CLI   │────▶│ Registry │────▶│ Checker │────▶│ Version Utils│
+│(Argparse│     │(TOML +   │     │(subprocess     │(Tuple-based  │
+│ Dispatch│     │ custom)  │     │ + shutil)│     │ semver parse)│
+└─────────┘     └──────────┘     └─────────┘     └──────────────┘
+                                                         │
+                    ┌────────────────────────────────────┘
+                    ▼
+             ┌────────────┐     ┌──────────────┐     ┌──────────┐
+             │   Health   │────▶│Platform Mgr  │────▶│Installer │
+             │  Scoring   │     │(winget/apt/  │     │(search + │
+             │ (weighted) │     │ brew/dnf)    │     │ install) │
+             └────────────┘     └──────────────┘     └──────────┘
+                    │                                      │
+                    ▼                                      ▼
+             ┌────────────┐                         ┌────────┐
+             │   Output   │                         │ Logger │
+             │(Rich/TUI/  │                         │(.log)  │
+             │  JSON/HTML)│                         └────────┘
+             └────────────┘
 ```
 
 ---
 
-## Why It Stands Out
+## System Architecture Overview
 
--   **High Performance Standards**: Explicitly implements all 6 core requirements (Install, Update, Config, Dependency, UI, Platform).
--   **Adaptive Installer**: Intelligently toggles between `winget`, `choco`, `apt`, `dnf`, and `brew` based on system availability.
--   **Deterministic Matching**: Uses strict keyword and word-boundary matching to prevent false-positive tool detection.
--   **Professional UX**: Seamlessly transitions between CLI, machine-readable JSON, and high-fidelity TUI dashboard.
--   **Engineering Depth**: Feature-rich version engine supporting tuple-based comparison for non-standard EDA version strings.
+```
+src/
+├── cli.py           Command dispatcher + all command implementations
+├── tui.py           Textual TUI — 4-screen dashboard application
+├── registry.py      TOML loader with safe custom tool merging
+├── checker.py       Subprocess-based tool discovery + version extraction
+├── installer.py     Multi-manager install engine with search validation
+├── platform_mgr.py  OS detection + package manager command generation
+├── health.py        Weighted scoring: Required×0.7 + Optional×0.3
+├── repair.py        Batch repair orchestration
+├── pip_checker.py   Python package audit via importlib.metadata
+├── version_utils.py Regex + tuple-based semantic version comparison
+├── snapshot.py      JSON state capture + differential analysis
+├── report.py        HTML report generator
+├── logger.py        Persistent timestamped event log
+├── config.py        TOML-based user config with auto-defaults
+├── constants.py     Centralized URLs — no circular imports
+└── tools.toml       Core tool registry (extensible)
+```
 
-## System Architecture
-
-The project follows a modular, parameter-driven architecture designed for zero global state.
-
-| Module | Responsibility |
-| :--- | :--- |
-| **`checker.py`** | Diagnostic engine for executable detection. |
-| **`health.py`** | Weighted scoring algorithm (Required * 0.7 + Optional * 0.3). |
-| **`registry.py`** | Safe merging of core tools and user-defined `custom_tools.toml`. |
-| **`platform_mgr.py`** | Normalizes OS-specific paths and manager logic. |
-| **`version_utils.py`** | Normalizes non-standard version strings into comparable tuples. |
+Full architecture documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
-## Local Development Setup
+## Tracked Tools
 
-For evaluators wishing to run from source without installation:
+| Tool          | Role                            | Required |
+| ------------- | ------------------------------- | :------: |
+| **Ngspice**   | Circuit simulation engine       |    ✓     |
+| **Python 3**  | Runtime                         |    ✓     |
+| **pip**       | Package manager                 |    ✓     |
+| **Git**       | Version control                 |    ✓     |
+| **KiCad**     | PCB + schematic design          |    —     |
+| **Verilator** | Verilog/SystemVerilog simulator |    —     |
+| **GHDL**      | VHDL simulator                  |    —     |
+
+Python packages tracked: `numpy`, `scipy`, `matplotlib`, `PyQt5`, `pyserial`, `requests`, `Pillow`
+
+---
+
+## Adding Custom Tools
+
+Drop a `custom_tools.toml` file at `~/.esim_tool_manager/custom_tools.toml`:
+
+```toml
+[my_tool]
+name        = "My Custom Tool"
+check_cmd   = "mytool --version"
+required    = false
+min_version = "1.0"
+apt_pkg     = "my-tool"
+```
+
+The registry merges custom tools safely — ID collisions and invalid entries are logged and skipped without interrupting normal operation.
+
+---
+
+## CI/CD Integration
 
 ```bash
-# Clone the repository
+# Fail the pipeline if required tools are missing
+esim-tm check --json > health.json
+python -c "
+import json, sys
+data = json.load(open('health.json'))
+missing = [t for t in data if t['required'] and not t['installed']]
+if missing:
+    print('Missing required tools:', [t['name'] for t in missing])
+    sys.exit(1)
+"
+```
+
+---
+
+## Health Scoring
+
+| Score | Status        | Meaning                                  |
+| ----- | ------------- | ---------------------------------------- |
+| 100   | **Excellent** | All tools present, all versions current  |
+| 70–99 | **Good**      | Required tools OK, some optional missing |
+| 40–69 | **Partial**   | One or more required tools missing       |
+| 0–39  | **Critical**  | Core toolchain non-functional            |
+
+Formula: `score = (required_installed / required_total × 70) + (optional_installed / optional_total × 30)`
+
+PATH issues and version conflicts are counted as failures in this formula.
+
+---
+
+## Documentation
+
+| Document                                     | Contents                                                     |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| [design_document.md](design_document.md)     | Architecture decisions, module breakdown, failure taxonomy   |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component diagrams, execution flow, version engine internals |
+| [docs/FEATURES.md](docs/FEATURES.md)         | Full feature reference with implementation details           |
+| [docs/USAGE.md](docs/USAGE.md)               | Real-world workflows with annotated command sequences        |
+
+---
+
+## Development
+
+```bash
 git clone https://github.com/mimo-to/eSim-Tool-manager.git
 cd eSim-Tool-manager
 
-# Install core UI dependencies
-pip install rich textual tomli
+# Run tests
+python -m unittest discover tests
 
-# Run the entry point
+# Run a specific command without installing
 python run.py doctor
+python run.py check --json
 ```
+
+Tests cover: version utils, health scoring, platform detection, registry loading, and the checker engine.
 
 ---
 
-**© 2026 eSim Tool Manager Project**
+<div align="center">
+
+Built with [Rich](https://github.com/Textualize/rich) · [Textual](https://github.com/Textualize/textual) · Python 3.9+
+
+</div>

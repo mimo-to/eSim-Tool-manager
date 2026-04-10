@@ -15,7 +15,7 @@ def check_tool(tool_id: str, tool_data: dict) -> dict:
             shell=True,
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=30
         )
         if result.returncode == 0:
             installed = True
